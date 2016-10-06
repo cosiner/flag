@@ -336,23 +336,21 @@ func (f *FlagSet) parseGlobalFlags(args []string) error {
 
 	for i := range f.flags {
 		flag := &f.flags[i]
-		if !applied[flag] {
-			applied[flag] = true
+		if applied[flag] {
+			continue
+		}
+		applied[flag] = true
 
-			if flag.Env != "" {
-				vals := flag.parseEnv()
-				if len(vals) > 0 {
-					err = flag.Apply(vals...)
-					if err != nil {
-						return err
-					}
-
-					continue
-				}
-			}
-			if flag.Default != nil {
-				flag.Apply(flag.parseDefault()...)
-			}
+		var vals []string
+		if flag.Env != "" {
+			vals = flag.parseEnv()
+		}
+		if len(vals) == 0 && flag.Default != nil {
+			vals = flag.parseDefault()
+		}
+		err = flag.Apply(vals...)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
