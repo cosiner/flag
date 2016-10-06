@@ -9,6 +9,7 @@ import (
 	"strings"
 )
 
+// Flag represents the state of a flag
 type Flag struct {
 	Ptr       interface{}
 	Names     string
@@ -18,6 +19,8 @@ type Flag struct {
 	Usage     string
 }
 
+// Apply update flag state, for slice flags, values will be appended to state,
+// for others, only latest value will be used.
 func (f *Flag) Apply(vals ...string) error {
 	for _, val := range vals {
 		err := applyValToPtr(f.Ptr, val)
@@ -59,8 +62,9 @@ func (f *Flag) parseEnv() []string {
 	return vals
 }
 
+// FlagSet represents a set of defined flag
 type FlagSet struct {
-	selfEnable Flag
+	self Flag
 
 	flags         []Flag
 	flagIndexes   map[string]int
@@ -68,9 +72,14 @@ type FlagSet struct {
 	subsetIndexes map[string]int
 }
 
-func NewFlagSet(usage string) *FlagSet {
+// NewFlagSet returns a new, empty flag set with the specified name and usage
+func NewFlagSet(name, usage string) *FlagSet {
+	if name == "" {
+		name = os.Args[0]
+	}
 	return &FlagSet{
-		selfEnable: Flag{
+		self: Flag{
+			Names: name,
 			Usage: usage,
 		},
 		flagIndexes:   make(map[string]int),
@@ -78,6 +87,17 @@ func NewFlagSet(usage string) *FlagSet {
 	}
 }
 
+// StructFlags parsing structure fields as Flag or FLagSet, base type such as int,
+// string, bool will be defined as a Flag, embed structure will be defined as a
+// sub-FlagSet.
+//
+// Structure fields can define some tags as flag properities:
+//    names:   flag names
+//    usage:   flag usage
+//    env:     flag environment variable name
+//    envsep:  flag value separator for slice values
+//    default: flag default values, slice values will be splitted by envsep or ',
+// Embed structure must has a 'Enable' field with type bool.
 func (f *FlagSet) StructFlags(val interface{}) error {
 	return f.structFlags(val, "")
 }
@@ -139,7 +159,7 @@ func (f *FlagSet) structFlags(val interface{}, excludeField string) error {
 		} else {
 			childFieldVal := fieldVal.FieldByName(FIELD_SUBSET_ENABLE)
 			if childFieldVal.Kind() != reflect.Bool {
-				return fmt.Errorf("illegal child field type: %s", fieldType.Name)
+				return fmt.Errorf("illegal child field type: %s", FIELD_SUBSET_ENABLE)
 			}
 
 			if names == "" {
@@ -156,6 +176,7 @@ func (f *FlagSet) structFlags(val interface{}, excludeField string) error {
 	return nil
 }
 
+// Flag defines a flag in current FlagSet
 func (f *FlagSet) Flag(flag Flag) *FlagSet {
 	refval := reflect.ValueOf(flag.Ptr)
 	if refval.Kind() != reflect.Ptr {
@@ -196,16 +217,16 @@ func (f *FlagSet) Flag(flag Flag) *FlagSet {
 	return f
 }
 
+// SubSet defines a sub-FlagSet in current FlagSet
 func (f *FlagSet) SubSet(ptr *bool, name, usage string) *FlagSet {
 	_, has := f.subsetIndexes[name]
 	if has {
 		panic(fmt.Errorf("duplicate subset name: %s", name))
 	}
 
-	set := NewFlagSet(usage)
-	set.selfEnable.Names = name
-	set.selfEnable.Default = false
-	set.selfEnable.Ptr = ptr
+	set := NewFlagSet(name, usage)
+	set.self.Default = false
+	set.self.Ptr = ptr
 	f.subsets = append(f.subsets, *set)
 	index := len(f.subsets) - 1
 	f.subsetIndexes[name] = index
@@ -333,8 +354,20 @@ func (f *FlagSet) defineHelpFlags() *bool {
 	return &showHelp
 }
 
+// Parse parsing specified arguments, first argument will be ignored. Arguments must
+// be ordered in format 'NAME [FLAG | SET...]'.
+//
+// If there is no help flags(-h, --help) defined, Parse will define these, and
+// print help string and then exit with code 0 if one of these two flag appeared.
 func (f *FlagSet) Parse(args ...string) error {
-	showHelp := f.defineHelpFlags()
+	return f.parse(true, args)
+}
+
+func (f *FlagSet) parse(isTop bool, args []string) error {
+	var showHelp *bool
+	if isTop {
+		showHelp = f.defineHelpFlags()
+	}
 
 	if len(args) == 0 {
 		args = os.Args
@@ -349,11 +382,11 @@ func (f *FlagSet) Parse(args ...string) error {
 	for sub, args := range sub {
 		index := f.subsetIndexes[sub]
 		set := &f.subsets[index]
-		err = set.selfEnable.Apply("true")
+		err = set.self.Apply("true")
 		if err != nil {
 			return err
 		}
-		err = set.Parse(args...)
+		err = set.parse(false, args)
 		if err != nil {
 			return err
 		}
@@ -366,7 +399,7 @@ func (f *FlagSet) Parse(args ...string) error {
 	return nil
 }
 
-func (f *FlagSet) writeToBuffer(buf *bytes.Buffer, indent, name string) {
+func (f *FlagSet) writeToBuffer(buf *bytes.Buffer, indent string) {
 	const INDENT = "  "
 
 	var write = func(indent, s string) {
@@ -378,11 +411,10 @@ func (f *FlagSet) writeToBuffer(buf *bytes.Buffer, indent, name string) {
 		buf.WriteByte('\n')
 	}
 
-	if name != "" {
-		writeln(indent, name)
-	}
-	if f.selfEnable.Usage != "" {
-		writeln(indent, f.selfEnable.Usage)
+	writeln(indent, fmt.Sprintf("%s [FLAG | SET]...", f.self.Names))
+
+	if f.self.Usage != "" {
+		writeln(indent, f.self.Usage)
 	}
 
 	flagsLen := len(f.flags)
@@ -426,13 +458,14 @@ func (f *FlagSet) writeToBuffer(buf *bytes.Buffer, indent, name string) {
 		subsetIndent := indent + INDENT
 		for i := range f.subsets {
 			set := &f.subsets[i]
-			set.writeToBuffer(buf, subsetIndent, set.selfEnable.Names)
+			set.writeToBuffer(buf, subsetIndent)
 		}
 	}
 }
 
+// String return a readable help string for current FlagSet
 func (f *FlagSet) String() string {
 	buf := bytes.NewBuffer(make([]byte, 0, 512))
-	f.writeToBuffer(buf, "", "")
+	f.writeToBuffer(buf, "")
 	return buf.String()
 }

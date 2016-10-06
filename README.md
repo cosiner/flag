@@ -1,6 +1,6 @@
 # Flag
 
-Flag is a command-line flag parsing. library for [Go](https://golang.org) support slice, structure, env variables parsing.
+Flag is a command-line flag parsing library for [Go](https://golang.org), support slice, structure, env variables parsing.
 
 # Documentation
 Documentation can be found at [Godoc](https://godoc.org/github.com/cosiner/flag)

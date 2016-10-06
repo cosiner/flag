@@ -1,12 +1,12 @@
 package flag
 
 import (
-	"testing"
 	"os"
+	"testing"
 )
 
 func TestFlag(test *testing.T) {
-	cmdline := NewFlagSet(`test flags`)
+	cmdline := NewFlagSet("", `test flags`)
 
 	type Flags struct {
 		A    bool `names:"-a" usage:"A"`
