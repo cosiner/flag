@@ -233,6 +233,27 @@ func (f *FlagSet) SubSet(ptr *bool, name, usage string) *FlagSet {
 	return &f.subsets[index]
 }
 
+func (f *FlagSet) defineHelpFlags() *bool {
+	const (
+		HELP_FLAG_SHORT = "-h"
+		HELP_FLAG_LONG  = "--help"
+	)
+
+	_, hasShort := f.flagIndexes[HELP_FLAG_SHORT]
+	_, hasLong := f.flagIndexes[HELP_FLAG_LONG]
+	if hasShort || hasLong {
+		return nil
+	}
+
+	var showHelp bool
+	f.Flag(Flag{
+		Ptr:   &showHelp,
+		Names: HELP_FLAG_SHORT + "," + HELP_FLAG_LONG,
+		Usage: "show help",
+	})
+	return &showHelp
+}
+
 func (f *FlagSet) splitFlags(args []string) (global []string, sub map[string][]string) {
 	sub = make(map[string][]string)
 
@@ -293,14 +314,18 @@ func (f *FlagSet) parseGlobalFlags(args []string) error {
 		} else if lastFlag == nil {
 			return fmt.Errorf("unsupported flag: %s", arg)
 		} else {
-			err = lastFlag.Apply(arg)
-			if err != nil {
-				return err
-			}
-
 			if lastFlagName != "" {
 				applied[lastFlag] = true
 				lastFlagName = ""
+			} else {
+				if !isSlicePtr(lastFlag.Ptr) {
+					return fmt.Errorf("flag %s accept only one argument", lastFlag.Names)
+				}
+			}
+
+			err = lastFlag.Apply(arg)
+			if err != nil {
+				return err
 			}
 		}
 	}
@@ -331,27 +356,6 @@ func (f *FlagSet) parseGlobalFlags(args []string) error {
 		}
 	}
 	return nil
-}
-
-func (f *FlagSet) defineHelpFlags() *bool {
-	const (
-		HELP_FLAG_SHORT = "-h"
-		HELP_FLAG_LONG  = "--help"
-	)
-
-	_, hasShort := f.flagIndexes[HELP_FLAG_SHORT]
-	_, hasLong := f.flagIndexes[HELP_FLAG_LONG]
-	if hasShort || hasLong {
-		return nil
-	}
-
-	var showHelp bool
-	f.Flag(Flag{
-		Ptr:   &showHelp,
-		Names: HELP_FLAG_SHORT + "," + HELP_FLAG_LONG,
-		Usage: "show help",
-	})
-	return &showHelp
 }
 
 // Parse parsing specified arguments, first argument will be ignored. Arguments must
