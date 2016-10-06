@@ -1,6 +1,9 @@
 package flag
 
-import "testing"
+import (
+	"testing"
+	"os"
+)
 
 func TestFlag(test *testing.T) {
 	cmdline := NewFlagSet(`test flags`)
@@ -22,7 +25,7 @@ func TestFlag(test *testing.T) {
 		test.Fatal(err)
 	}
 
-	err = cmdline.Parse("-a", "-b", "1", "barz", "-c", "1", "2", "3", "-d", "a", "b", "c", "--help")
+	err = cmdline.Parse(os.Args[0], "-a", "-b", "1", "barz", "-c", "1", "2", "3", "-d", "a", "b", "c")
 	if err != nil {
 		test.Fatal(err)
 	}

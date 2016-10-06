@@ -328,7 +328,7 @@ func (f *FlagSet) defineHelpFlags() *bool {
 	f.Flag(Flag{
 		Ptr:   &showHelp,
 		Names: HELP_FLAG_SHORT + "," + HELP_FLAG_LONG,
-		Usage: "showw help",
+		Usage: "show help",
 	})
 	return &showHelp
 }
