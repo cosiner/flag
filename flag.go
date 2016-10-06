@@ -281,6 +281,29 @@ func (f *FlagSet) splitFlags(args []string) (global []string, sub map[string][]s
 	return global, sub
 }
 
+func (f *FlagSet) applyEnvOrDefault(applied map[*Flag]bool) error {
+	for i := range f.flags {
+		flag := &f.flags[i]
+		if applied[flag] {
+			continue
+		}
+		applied[flag] = true
+
+		var vals []string
+		if flag.Env != "" {
+			vals = flag.parseEnv()
+		}
+		if len(vals) == 0 && flag.Default != nil {
+			vals = flag.parseDefault()
+		}
+		err := flag.Apply(vals...)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (f *FlagSet) parseGlobalFlags(args []string) error {
 	var (
 		applied      = make(map[*Flag]bool)
@@ -334,26 +357,7 @@ func (f *FlagSet) parseGlobalFlags(args []string) error {
 		return err
 	}
 
-	for i := range f.flags {
-		flag := &f.flags[i]
-		if applied[flag] {
-			continue
-		}
-		applied[flag] = true
-
-		var vals []string
-		if flag.Env != "" {
-			vals = flag.parseEnv()
-		}
-		if len(vals) == 0 && flag.Default != nil {
-			vals = flag.parseDefault()
-		}
-		err = flag.Apply(vals...)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return f.applyEnvOrDefault(applied)
 }
 
 // Parse parsing specified arguments, first argument will be ignored. Arguments must
