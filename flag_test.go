@@ -14,9 +14,9 @@ func TestFlag(test *testing.T) {
 		Barz struct {
 			Enable bool
 
-			C []int    `names:"-c" usage:"C" default:"3,4,5"`
+			C []int    `names:"-c,  --col" usage:"C" default:"3,4,5"`
 			D []string `names:"-d" usage:"D" default:"6,7,8"`
-		}
+		} `usage:"barz"`
 	}
 
 	var fs Flags
@@ -25,10 +25,10 @@ func TestFlag(test *testing.T) {
 		test.Fatal(err)
 	}
 
-	err = cmdline.Parse(os.Args[0], "-a", "false", "-b", "1", "barz", "-c", "1", "2", "3", "-d", "a", "b", "c")
+	err = cmdline.Parse(os.Args[0], "barz", "--help")
 	if err != nil {
 		test.Fatal(err)
 	}
-	test.Logf("%+v", fs)
+
 	test.Log(cmdline.String())
 }

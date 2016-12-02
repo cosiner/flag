@@ -7,6 +7,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"path/filepath"
 )
 
 // Flag represents the state of a flag
@@ -75,7 +76,7 @@ type FlagSet struct {
 // NewFlagSet returns a new, empty flag set with the specified name and usage
 func NewFlagSet(name, usage string) *FlagSet {
 	if name == "" {
-		name = os.Args[0]
+		name = filepath.Base(os.Args[0])
 	}
 	return &FlagSet{
 		self: Flag{
@@ -385,6 +386,7 @@ func (f *FlagSet) parse(isTop bool, args []string) error {
 		return err
 	}
 
+	helpSet := f
 	for sub, args := range sub {
 		index := f.subsetIndexes[sub]
 		set := &f.subsets[index]
@@ -396,17 +398,20 @@ func (f *FlagSet) parse(isTop bool, args []string) error {
 		if err != nil {
 			return err
 		}
+		if helpSet == f {
+			helpSet = set
+		}
 	}
 
 	if showHelp != nil && *showHelp {
-		fmt.Println(f)
+		fmt.Println(helpSet)
 		os.Exit(0)
 	}
 	return nil
 }
 
 func (f *FlagSet) writeToBuffer(buf *bytes.Buffer, indent string) {
-	const INDENT = "  "
+	const INDENT = "      "
 
 	var write = func(indent, s string) {
 		buf.WriteString(indent)
@@ -426,7 +431,6 @@ func (f *FlagSet) writeToBuffer(buf *bytes.Buffer, indent string) {
 	flagsLen := len(f.flags)
 	subsetsLen := len(f.subsets)
 	if flagsLen > 0 {
-		writeln("", "")
 		if subsetsLen > 0 {
 			writeln(indent, "GLOBAL FLAGS：")
 		}
@@ -445,10 +449,13 @@ func (f *FlagSet) writeToBuffer(buf *bytes.Buffer, indent string) {
 				}
 				write("", ")")
 			}
+
+			var def string
 			if flag.Default != nil {
-				write("", fmt.Sprintf(" (DEFAULT: %v)", flag.Default))
+				def = fmt.Sprintf(", default %v", flag.Default)
 			}
-			writeln("", fmt.Sprintf(" (TYPE: %s)", typeName(flag.Ptr)))
+			writeln("", fmt.Sprintf(" (%s%s)", typeName(flag.Ptr), def))
+
 			if flag.Usage != "" {
 				writeln(flagUsageIndent, flag.Usage)
 			}
