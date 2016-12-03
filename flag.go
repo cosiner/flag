@@ -5,19 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
-	"path/filepath"
 )
 
 // Flag represents the state of a flag
 type Flag struct {
-	Ptr       interface{}
-	Names     string
-	Default   interface{}
-	Env       string
-	EnvValSep string
-	Usage     string
+	Ptr         interface{} // value pointer
+	Names       string      // names
+	Description string      // value description
+	Default     interface{} // default value
+	Env         string      // environment name
+	EnvValSep   string      // environment value separator
+	Usage       string      // usage
 }
 
 // Apply update flag state, for slice flags, values will be appended to state,
@@ -69,6 +70,7 @@ type FlagSet struct {
 
 	flags         []Flag
 	flagIndexes   map[string]int
+	maxFlagLen    int
 	subsets       []FlagSet
 	subsetIndexes map[string]int
 }
@@ -110,6 +112,7 @@ func (f *FlagSet) structFlags(val interface{}, excludeField string) error {
 		TAG_ENV     = "env"
 		TAG_ENVSEP  = "envsep"
 		TAG_DEFAULT = "default"
+		TAG_DESC    = "desc"
 
 		FIELD_SUBSET_ENABLE = "Enable"
 	)
@@ -136,6 +139,7 @@ func (f *FlagSet) structFlags(val interface{}, excludeField string) error {
 		env := fieldType.Tag.Get(TAG_ENV)
 		envsep := envValSep(fieldType.Tag.Get(TAG_ENVSEP))
 		def := fieldType.Tag.Get(TAG_DEFAULT)
+		desc := fieldType.Tag.Get(TAG_DESC)
 
 		if fieldVal.Kind() != reflect.Struct {
 			if typeName(ptr) == "" {
@@ -150,12 +154,13 @@ func (f *FlagSet) structFlags(val interface{}, excludeField string) error {
 				return err
 			}
 			f.Flag(Flag{
-				Names:     names,
-				Ptr:       ptr,
-				Env:       env,
-				EnvValSep: envsep,
-				Usage:     usage,
-				Default:   defval,
+				Names:       names,
+				Description: desc,
+				Ptr:         ptr,
+				Env:         env,
+				EnvValSep:   envsep,
+				Usage:       usage,
+				Default:     defval,
 			})
 		} else {
 			childFieldVal := fieldVal.FieldByName(FIELD_SUBSET_ENABLE)
@@ -214,6 +219,9 @@ func (f *FlagSet) Flag(flag Flag) *FlagSet {
 	}
 	flag.EnvValSep = envValSep(flag.EnvValSep)
 	flag.Names = strings.Join(ns, ", ")
+	if l := len(flag.Names); l > f.maxFlagLen {
+		f.maxFlagLen = l
+	}
 	f.flags = append(f.flags, flag)
 	return f
 }
@@ -421,6 +429,12 @@ func (f *FlagSet) writeToBuffer(buf *bytes.Buffer, indent string) {
 		write(indent, s)
 		buf.WriteByte('\n')
 	}
+	var writeNames = func(indent, names string) {
+		write(indent, names)
+		//for l := len(names); l < f.maxFlagLen; l++ {
+		//	buf.WriteByte(' ')
+		//}
+	}
 
 	writeln(indent, fmt.Sprintf("%s [FLAG | SET]...", f.self.Names))
 
@@ -440,21 +454,25 @@ func (f *FlagSet) writeToBuffer(buf *bytes.Buffer, indent string) {
 		for i := range f.flags {
 			flag := &f.flags[i]
 
-			write(flagIndent, flag.Names)
-
+			writeNames(flagIndent, flag.Names)
+			if flag.Description != "" {
+				if strings.IndexByte(flag.Description, ' ') >= 0 {
+					write("", " '"+flag.Description+"'")
+				} else {
+					write("", " "+flag.Description)
+				}
+			}
+			write("", " ("+typeName(flag.Ptr))
 			if flag.Env != "" {
-				write("", fmt.Sprintf(" (ENV: '%s'", flag.Env))
+				write("", fmt.Sprintf("; env: %s", flag.Env))
 				if isSlicePtr(flag.Ptr) {
 					write("", fmt.Sprintf(", splitted by '%s'", flag.EnvValSep))
 				}
-				write("", ")")
 			}
-
-			var def string
 			if flag.Default != nil {
-				def = fmt.Sprintf(", default %v", flag.Default)
+				write("", fmt.Sprintf("; default: %v", flag.Default))
 			}
-			writeln("", fmt.Sprintf(" (%s%s)", typeName(flag.Ptr), def))
+			writeln("", ")")
 
 			if flag.Usage != "" {
 				writeln(flagUsageIndent, flag.Usage)

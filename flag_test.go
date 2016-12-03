@@ -14,8 +14,8 @@ func TestFlag(test *testing.T) {
 		Barz struct {
 			Enable bool
 
-			C []int    `names:"-c,  --col" usage:"C" default:"3,4,5"`
-			D []string `names:"-d" usage:"D" default:"6,7,8"`
+			C []int    `names:"-c,  --col" desc:"tag list" usage:"C" default:"3,4,5"`
+			D []string `names:"-d" usage:"D" desc:"tag" default:"6,7,8"`
 		} `usage:"barz"`
 	}
 
