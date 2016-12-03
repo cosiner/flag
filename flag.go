@@ -445,10 +445,6 @@ func (f *FlagSet) writeToBuffer(buf *bytes.Buffer, indent string) {
 	flagsLen := len(f.flags)
 	subsetsLen := len(f.subsets)
 	if flagsLen > 0 {
-		if subsetsLen > 0 {
-			writeln(indent, "GLOBAL FLAGS：")
-		}
-
 		flagIndent := indent + INDENT
 		flagUsageIndent := flagIndent + INDENT
 		for i := range f.flags {
@@ -482,9 +478,6 @@ func (f *FlagSet) writeToBuffer(buf *bytes.Buffer, indent string) {
 
 	if subsetsLen != 0 {
 		writeln("", "")
-		if flagsLen > 0 {
-			writeln(indent, "SUBSET FLAGS:")
-		}
 
 		subsetIndent := indent + INDENT
 		for i := range f.subsets {

@@ -25,10 +25,8 @@ func TestFlag(test *testing.T) {
 		test.Fatal(err)
 	}
 
-	err = cmdline.Parse(os.Args[0], "barz", "--help")
+	err = cmdline.Parse(os.Args[0], "--help")
 	if err != nil {
 		test.Fatal(err)
 	}
-
-	test.Log(cmdline.String())
 }

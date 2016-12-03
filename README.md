@@ -6,6 +6,7 @@ Flag is a command-line flag parsing library for [Go](https://golang.org), suppor
 Documentation can be found at [Godoc](https://godoc.org/github.com/cosiner/flag)
 
 # Example
+#### Code
 ```Go
 func TestFlag(test *testing.T) {
 	cmdline := NewFlagSet("", `test flags`)
@@ -16,9 +17,9 @@ func TestFlag(test *testing.T) {
 		Barz struct {
 			Enable bool
 
-			C []int    `names:"-c" usage:"C" default:"3,4,5"`
-			D []string `names:"-d" usage:"D" default:"6,7,8"`
-		}
+			C []int    `names:"-c,  --col" desc:"tag list" usage:"C" default:"3,4,5"`
+			D []string `names:"-d" usage:"D" desc:"tag" default:"6,7,8"`
+		} `usage:"barz"`
 	}
 
 	var fs Flags
@@ -27,13 +28,29 @@ func TestFlag(test *testing.T) {
 		test.Fatal(err)
 	}
 
-	err = cmdline.Parse(os.Args[0], "-a", "-b", "1", "barz", "-c", "1", "2", "3", "-d", "a", "b", "c")
+	err = cmdline.Parse(os.Args[0], "--help")
 	if err != nil {
 		test.Fatal(err)
 	}
-	test.Logf("%+v", fs)
-	test.Log(cmdline.String())
 }
+```
+##### Output
+```
+flag.test [FLAG | SET]...
+test flags
+      -a (bool)
+            A
+      -b (int; default: 2)
+            B
+      -h, --help (bool)
+            show help
+
+      barz [FLAG | SET]...
+      barz
+            -c, --col 'tag list' ([]int; default: [3 4 5])
+                  C
+            -d tag ([]string; default: [6 7 8])
+                  D
 ```
 
 # LICENSE
