@@ -266,25 +266,31 @@ func (f *FlagSet) defineHelpFlags() *bool {
 func (f *FlagSet) splitFlags(args []string) (global []string, sub map[string][]string) {
 	sub = make(map[string][]string)
 
-	var subname string
+	var subset string
 	for _, arg := range args {
-		secs := strings.SplitN(arg, "=", 2)
+		var secs []string
+		index := strings.IndexByte(arg, '=')
+		if index > 0 && index < len(args)-1 {
+			secs := strings.SplitN(arg, "=", 2)
+			arg = secs[0]
+		} else {
+			secs = []string{arg}
+		}
 
-		arg = secs[0]
-		if subname == "" {
+		if subset == "" {
 			if _, has := f.subsetIndexes[arg]; has && len(sub[arg]) == 0 {
-				subname = arg
+				subset = arg
 			}
 		} else {
 			if _, has := f.flagIndexes[arg]; has {
-				subname = ""
+				subset = ""
 			}
 		}
 
-		if subname == "" {
+		if subset == "" {
 			global = append(global, secs...)
 		} else {
-			sub[subname] = append(sub[subname], secs...)
+			sub[subset] = append(sub[subset], secs...)
 		}
 	}
 	return global, sub
