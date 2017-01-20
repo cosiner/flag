@@ -64,6 +64,49 @@ func (f *Flag) parseEnv() []string {
 	return vals
 }
 
+type ErrorHandling uint16
+
+const (
+	ERR_PRINT ErrorHandling = 1 << iota
+	ERR_EXIT
+	ERR_PANIC
+	ERR_IGNORE
+
+	DEFAULT_ERROR_HANDLING = ERR_PRINT | ERR_EXIT
+)
+
+func (e ErrorHandling) do(eh ErrorHandling) bool {
+	return e&eh != 0
+}
+
+func (e ErrorHandling) Handle(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	if e.do(ERR_PANIC) {
+		panic(err)
+	}
+	if e.do(ERR_PRINT) {
+		fmt.Fprintln(os.Stderr, err)
+	}
+	if e.do(ERR_EXIT) {
+		os.Exit(2)
+	}
+	if e.do(ERR_IGNORE) {
+		return nil
+	}
+	return err
+}
+
+func mergeErrHandling(ehs ...ErrorHandling) ErrorHandling {
+	var e ErrorHandling
+	for _, eh := range ehs {
+		e |= eh
+	}
+	return e
+}
+
 // FlagSet represents a set of defined flag
 type FlagSet struct {
 	self Flag
@@ -73,6 +116,8 @@ type FlagSet struct {
 	maxFlagLen    int
 	subsets       []FlagSet
 	subsetIndexes map[string]int
+
+	errorHandling ErrorHandling
 }
 
 // NewFlagSet returns a new, empty flag set with the specified name and usage
@@ -87,7 +132,17 @@ func NewFlagSet(name, usage string) *FlagSet {
 		},
 		flagIndexes:   make(map[string]int),
 		subsetIndexes: make(map[string]int),
+		errorHandling: DEFAULT_ERROR_HANDLING,
 	}
+}
+
+func (f *FlagSet) ErrHandling(ehs ...ErrorHandling) *FlagSet {
+	f.errorHandling = mergeErrHandling(ehs...)
+
+	for i := range f.subsets {
+		f.subsets[i].ErrHandling(f.errorHandling)
+	}
+	return f
 }
 
 // StructFlags parsing structure fields as Flag or FLagSet, base type such as int,
@@ -102,7 +157,7 @@ func NewFlagSet(name, usage string) *FlagSet {
 //    default: flag default values, slice values will be splitted by envsep or ',
 // Embed structure must has a 'Enable' field with type bool.
 func (f *FlagSet) StructFlags(val interface{}) error {
-	return f.structFlags(val, "")
+	return f.errorHandling.Handle(f.structFlags(val, ""))
 }
 
 func (f *FlagSet) structFlags(val interface{}, excludeField string) error {
@@ -236,6 +291,8 @@ func (f *FlagSet) SubSet(ptr *bool, name, usage string) *FlagSet {
 	set := NewFlagSet(name, usage)
 	set.self.Default = false
 	set.self.Ptr = ptr
+	set.errorHandling = f.errorHandling
+
 	f.subsets = append(f.subsets, *set)
 	index := len(f.subsets) - 1
 	f.subsetIndexes[name] = index
@@ -270,7 +327,7 @@ func (f *FlagSet) splitFlags(args []string) (global []string, sub map[string][]s
 	for _, arg := range args {
 		var secs []string
 		index := strings.IndexByte(arg, '=')
-		if index > 0 && index < len(args)-1 {
+		if index > 0 && index < len(arg)-1 {
 			secs := strings.SplitN(arg, "=", 2)
 			arg = secs[0]
 		} else {
@@ -381,7 +438,7 @@ func (f *FlagSet) parseGlobalFlags(args []string) error {
 // If there is no help flags(-h, --help) defined, Parse will define these, and
 // print help string and then exit with code 0 if one of these two flag appeared.
 func (f *FlagSet) Parse(args ...string) error {
-	return f.parse(true, args)
+	return f.errorHandling.Handle(f.parse(true, args))
 }
 
 func (f *FlagSet) parse(isTop bool, args []string) error {
@@ -422,6 +479,15 @@ func (f *FlagSet) parse(isTop bool, args []string) error {
 		os.Exit(0)
 	}
 	return nil
+}
+
+func (f *FlagSet) ParseStruct(val interface{}, args ...string) error {
+	err := f.StructFlags(val)
+	if err != nil {
+		return err
+	}
+
+	return f.Parse(args...)
 }
 
 func (f *FlagSet) writeToBuffer(buf *bytes.Buffer, indent string) {
