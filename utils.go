@@ -37,7 +37,11 @@ func isKindCompatible(k1, k2 reflect.Kind) bool {
 }
 
 func sliceElemKind(val reflect.Value) reflect.Kind {
-	return val.Type().Elem().Kind()
+	k := val.Kind()
+	if k == reflect.Slice {
+		return val.Type().Elem().Kind()
+	}
+	return k
 }
 
 func isBoolPtr(ptr interface{}) bool {
@@ -113,37 +117,148 @@ func parseDefault(val, valsep string, ptr interface{}) (interface{}, error) {
 		}
 	case reflect.Slice:
 		vals := splitAndTrimSpace(val, valsep)
-		switch k := refval.Type().Elem().Kind(); k {
+		switch k := sliceElemKind(refval); k {
 		case reflect.String:
 			return vals, nil
 		case reflect.Bool:
-			bs := make([]bool, 0, len(vals))
-			for _, v := range vals {
-				b, err := parseBool(v)
-				if err != nil {
-					return nil, err
-				}
-				bs = append(bs, b)
-			}
-			return bs, nil
+			bs, err := convertToBools(vals)
+			return bs, err
 		default:
 			if isKindNumber(k) {
-				fs := make([]float64, 0, len(vals))
-				for _, v := range vals {
-					f, err := strconv.ParseFloat(v, 64)
-					if err != nil {
-						return nil, err
-					}
-					fs = append(fs, f)
-				}
-				return fs, nil
+				fs, err := convertToFloats(vals)
+				return fs, err
 			}
 		}
 	}
 	return nil, errors.New("unsupported kind")
 }
 
-func envValSep(sep string) string {
+func convertNumberSlice(val interface{}) []float64 {
+	var fs []float64
+	switch vals := val.(type) {
+	case []int:
+		fs = make([]float64, len(vals))
+		for i, v := range vals {
+			fs[i] = float64(v)
+		}
+	case []int8:
+		fs = make([]float64, len(vals))
+		for i, v := range vals {
+			fs[i] = float64(v)
+		}
+	case []int16:
+		fs = make([]float64, len(vals))
+		for i, v := range vals {
+			fs[i] = float64(v)
+		}
+	case []int32:
+		fs = make([]float64, len(vals))
+		for i, v := range vals {
+			fs[i] = float64(v)
+		}
+	case []int64:
+		fs = make([]float64, len(vals))
+		for i, v := range vals {
+			fs[i] = float64(v)
+		}
+	case []uint:
+		fs = make([]float64, len(vals))
+		for i, v := range vals {
+			fs[i] = float64(v)
+		}
+	case []uint8:
+		fs = make([]float64, len(vals))
+		for i, v := range vals {
+			fs[i] = float64(v)
+		}
+	case []uint16:
+		fs = make([]float64, len(vals))
+		for i, v := range vals {
+			fs[i] = float64(v)
+		}
+	case []uint32:
+		fs = make([]float64, len(vals))
+		for i, v := range vals {
+			fs[i] = float64(v)
+		}
+	case []uint64:
+		fs = make([]float64, len(vals))
+		for i, v := range vals {
+			fs[i] = float64(v)
+		}
+	case []float32:
+		fs = make([]float64, len(vals))
+		for i, v := range vals {
+			fs[i] = float64(v)
+		}
+	case []float64:
+		fs = vals
+	}
+	return fs
+}
+
+func convertToFloats(vals []string) ([]float64, error) {
+	fs := make([]float64, 0, len(vals))
+	for _, v := range vals {
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return nil, err
+		}
+		fs = append(fs, f)
+	}
+	return fs, nil
+}
+
+func convertToBools(vals []string) ([]bool, error) {
+	bs := make([]bool, 0, len(vals))
+	for _, v := range vals {
+		f, err := parseBool(v)
+		if err != nil {
+			return nil, err
+		}
+		bs = append(bs, f)
+	}
+	return bs, nil
+}
+
+func parseSelectsString(val, valsep string, ptr interface{}) (interface{}, error) {
+	if val == "" {
+		return nil, nil
+	}
+
+	refval := reflect.ValueOf(ptr).Elem()
+	vals := splitAndTrimSpace(val, valsep)
+	k := sliceElemKind(refval)
+	switch {
+	case k == reflect.String:
+		return vals, nil
+	case isKindNumber(k):
+		return convertToFloats(vals)
+	}
+	return nil, fmt.Errorf("doesn't support select: %s", k.String())
+}
+
+func parseSelectsValue(ptr interface{}, val interface{}) (interface{}, error) {
+	if val == nil {
+		return nil, nil
+	}
+
+	refval := reflect.ValueOf(ptr).Elem()
+	k := sliceElemKind(refval)
+	if isKindNumber(k) {
+		fs := convertNumberSlice(val)
+		if len(fs) != 0 {
+			return fs, nil
+		}
+	} else if k == reflect.String {
+		if vals, ok := val.([]string); ok && len(vals) != 0 {
+			return vals, nil
+		}
+	}
+	return nil, errors.New("invalid selects")
+}
+
+func valSep(sep string) string {
 	if sep == "" {
 		return ","
 	}
@@ -212,12 +327,35 @@ func typeName(ptr interface{}) string {
 	return ""
 }
 
-func applyValToPtr(ptr interface{}, val string) error {
+func checkSelects(k reflect.Kind, selects interface{}, val string, flt float64) bool {
+	var valid bool
+	switch {
+	case isKindNumber(k):
+		vals, _ := selects.([]float64)
+		for _, v := range vals {
+			valid = valid || flt == v
+			if valid {
+				break
+			}
+		}
+	case k == reflect.String:
+		vals, _ := selects.([]string)
+		for _, v := range vals {
+			valid = valid || v == val
+			if valid {
+				break
+			}
+		}
+	}
+	return valid
+}
+
+func applyValToPtr(names string, ptr interface{}, val string, selects interface{}) error {
 	var err error
 	if isBoolPtr(ptr) {
 		val, err = convertBool(val)
 		if err != nil {
-			return err
+			return fmt.Errorf("%s: %s", names, err.Error())
 		}
 	}
 
@@ -282,6 +420,16 @@ func applyValToPtr(ptr interface{}, val string) error {
 		*v, err = append(*v, bl), berr
 	default:
 		err = errors.New("unsupported type")
+	}
+	if err != nil {
+		return fmt.Errorf("%s: %s", names, err.Error())
+	}
+	if selects != nil {
+		refval := reflect.ValueOf(ptr).Elem()
+		k := sliceElemKind(refval)
+		if !checkSelects(k, selects, val, flt) {
+			return fmt.Errorf("%s: invalid value %s of %v", names, val, selects)
+		}
 	}
 	return err
 }

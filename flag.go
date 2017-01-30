@@ -16,8 +16,9 @@ type Flag struct {
 	Names       string      // names
 	Description string      // value description
 	Default     interface{} // default value
+	Selects     interface{} // select value
 	Env         string      // environment name
-	EnvValSep   string      // environment value separator
+	ValSep      string      // environment value separator
 	Usage       string      // usage
 }
 
@@ -25,7 +26,7 @@ type Flag struct {
 // for others, only latest value will be used.
 func (f *Flag) Apply(vals ...string) error {
 	for _, val := range vals {
-		err := applyValToPtr(f.Ptr, val)
+		err := applyValToPtr(f.Names, f.Ptr, val, f.Selects)
 		if err != nil {
 			return err
 		}
@@ -118,6 +119,7 @@ type FlagSet struct {
 	subsetIndexes map[string]int
 
 	errorHandling ErrorHandling
+	noHelp        bool
 }
 
 // NewFlagSet returns a new, empty flag set with the specified name and usage
@@ -145,6 +147,14 @@ func (f *FlagSet) ErrHandling(ehs ...ErrorHandling) *FlagSet {
 	return f
 }
 
+func (f *FlagSet) Help(need bool) *FlagSet {
+	f.noHelp = !need
+	for i := range f.subsets {
+		f.subsets[i].Help(need)
+	}
+	return f
+}
+
 // StructFlags parsing structure fields as Flag or FLagSet, base type such as int,
 // string, bool will be defined as a Flag, embed structure will be defined as a
 // sub-FlagSet.
@@ -153,8 +163,9 @@ func (f *FlagSet) ErrHandling(ehs ...ErrorHandling) *FlagSet {
 //    names:   flag names
 //    usage:   flag usage
 //    env:     flag environment variable name
-//    envsep:  flag value separator for slice values
+//    valsep:  flag value separator for slice values
 //    default: flag default values, slice values will be splitted by envsep or ',
+//    selects: flag possible values, flag type must be string or number
 // Embed structure must has a 'Enable' field with type bool.
 func (f *FlagSet) StructFlags(val interface{}) error {
 	return f.errorHandling.Handle(f.structFlags(val, ""))
@@ -165,8 +176,9 @@ func (f *FlagSet) structFlags(val interface{}, excludeField string) error {
 		TAG_NAMES   = "names"
 		TAG_USAGE   = "usage"
 		TAG_ENV     = "env"
-		TAG_ENVSEP  = "envsep"
+		TAG_VALSEP  = "valsep"
 		TAG_DEFAULT = "default"
+		TAG_SELECTS = "selects"
 		TAG_DESC    = "desc"
 
 		FIELD_SUBSET_ENABLE = "Enable"
@@ -192,9 +204,10 @@ func (f *FlagSet) structFlags(val interface{}, excludeField string) error {
 		names := fieldType.Tag.Get(TAG_NAMES)
 		usage := fieldType.Tag.Get(TAG_USAGE)
 		env := fieldType.Tag.Get(TAG_ENV)
-		envsep := envValSep(fieldType.Tag.Get(TAG_ENVSEP))
+		valsep := valSep(fieldType.Tag.Get(TAG_VALSEP))
 		def := fieldType.Tag.Get(TAG_DEFAULT)
 		desc := fieldType.Tag.Get(TAG_DESC)
+		selects := fieldType.Tag.Get(TAG_SELECTS)
 
 		if fieldVal.Kind() != reflect.Struct {
 			if typeName(ptr) == "" {
@@ -204,7 +217,11 @@ func (f *FlagSet) structFlags(val interface{}, excludeField string) error {
 			if names == "" {
 				names = "-" + unexportedName(fieldType.Name)
 			}
-			defval, err := parseDefault(def, envsep, ptr)
+			defval, err := parseDefault(def, valsep, ptr)
+			if err != nil {
+				return err
+			}
+			selects, err := parseSelectsString(selects, valsep, ptr)
 			if err != nil {
 				return err
 			}
@@ -213,9 +230,10 @@ func (f *FlagSet) structFlags(val interface{}, excludeField string) error {
 				Description: desc,
 				Ptr:         ptr,
 				Env:         env,
-				EnvValSep:   envsep,
+				ValSep:      valsep,
 				Usage:       usage,
 				Default:     defval,
+				Selects:     selects,
 			})
 		} else {
 			childFieldVal := fieldVal.FieldByName(FIELD_SUBSET_ENABLE)
@@ -260,6 +278,13 @@ func (f *FlagSet) Flag(flag Flag) *FlagSet {
 			panic(fmt.Errorf("incompatible default value type: %s", flag.Names))
 		}
 	}
+	if flag.Selects != nil {
+		var err error
+		flag.Selects, err = parseSelectsValue(flag.Ptr, flag.Selects)
+		if err != nil {
+			panic(fmt.Errorf("%s: %s", flag.Names, err.Error()))
+		}
+	}
 
 	var (
 		index = len(f.flags)
@@ -272,7 +297,7 @@ func (f *FlagSet) Flag(flag Flag) *FlagSet {
 
 		f.flagIndexes[name] = index
 	}
-	flag.EnvValSep = envValSep(flag.EnvValSep)
+	flag.ValSep = valSep(flag.ValSep)
 	flag.Names = strings.Join(ns, ", ")
 	if l := len(flag.Names); l > f.maxFlagLen {
 		f.maxFlagLen = l
@@ -443,7 +468,7 @@ func (f *FlagSet) Parse(args ...string) error {
 
 func (f *FlagSet) parse(isTop bool, args []string) error {
 	var showHelp *bool
-	if isTop {
+	if isTop && !f.noHelp {
 		showHelp = f.defineHelpFlags()
 	}
 
@@ -534,11 +559,14 @@ func (f *FlagSet) writeToBuffer(buf *bytes.Buffer, indent string) {
 			if flag.Env != "" {
 				write("", fmt.Sprintf("; env: %s", flag.Env))
 				if isSlicePtr(flag.Ptr) {
-					write("", fmt.Sprintf(", splitted by '%s'", flag.EnvValSep))
+					write("", fmt.Sprintf(", splitted by '%s'", flag.ValSep))
 				}
 			}
 			if flag.Default != nil {
 				write("", fmt.Sprintf("; default: %v", flag.Default))
+			}
+			if flag.Selects != nil {
+				write("", fmt.Sprintf("; selects: %v", flag.Selects))
 			}
 			writeln("", ")")
 
