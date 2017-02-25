@@ -345,7 +345,7 @@ func (f *FlagSet) defineHelpFlags() *bool {
 	return &showHelp
 }
 
-func (f *FlagSet) splitFlags(args []string) (global []string, sub map[string][]string) {
+func (f *FlagSet) splitFlags(args []string) (global []string, sub map[string][]string, firstSub string) {
 	sub = make(map[string][]string)
 
 	var subset string
@@ -359,13 +359,16 @@ func (f *FlagSet) splitFlags(args []string) (global []string, sub map[string][]s
 			secs = []string{arg}
 		}
 
-		if subset == "" {
-			if _, has := f.subsetIndexes[arg]; has && len(sub[arg]) == 0 {
-				subset = arg
-			}
-		} else {
+		var isGlobal bool
+		if subset != "" {
 			if _, has := f.flagIndexes[arg]; has {
 				subset = ""
+				isGlobal = true
+			}
+		}
+		if !isGlobal {
+			if _, has := f.subsetIndexes[arg]; has && len(sub[arg]) == 0 {
+				subset = arg
 			}
 		}
 
@@ -373,9 +376,12 @@ func (f *FlagSet) splitFlags(args []string) (global []string, sub map[string][]s
 			global = append(global, secs...)
 		} else {
 			sub[subset] = append(sub[subset], secs...)
+			if firstSub == "" {
+				firstSub = subset
+			}
 		}
 	}
-	return global, sub
+	return global, sub, firstSub
 }
 
 func (f *FlagSet) applyEnvOrDefault(applied map[*Flag]bool) error {
@@ -463,10 +469,11 @@ func (f *FlagSet) parseGlobalFlags(args []string) error {
 // If there is no help flags(-h, --help) defined, Parse will define these, and
 // print help string and then exit with code 0 if one of these two flag appeared.
 func (f *FlagSet) Parse(args ...string) error {
-	return f.errorHandling.Handle(f.parse(true, args))
+	_, err := f.parse(true, args)
+	return f.errorHandling.Handle(err)
 }
 
-func (f *FlagSet) parse(isTop bool, args []string) error {
+func (f *FlagSet) parse(isTop bool, args []string) (lastSubset *FlagSet, err error) {
 	var showHelp *bool
 	if isTop && !f.noHelp {
 		showHelp = f.defineHelpFlags()
@@ -476,34 +483,39 @@ func (f *FlagSet) parse(isTop bool, args []string) error {
 		args = os.Args
 	}
 
-	global, sub := f.splitFlags(args[1:])
-	err := f.parseGlobalFlags(global)
+	global, sub, firstSub := f.splitFlags(args[1:])
+	err = f.parseGlobalFlags(global)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	helpSet := f
 	for sub, args := range sub {
 		index := f.subsetIndexes[sub]
 		set := &f.subsets[index]
 		err = set.self.Apply("true")
 		if err != nil {
-			return err
+			return nil, err
 		}
-		err = set.parse(false, args)
+		last, err := set.parse(false, args)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if helpSet == f {
-			helpSet = set
+		if sub == firstSub {
+			lastSubset = last
+			if lastSubset == nil {
+				lastSubset = set
+			}
 		}
 	}
 
+	if lastSubset == nil {
+		lastSubset = f
+	}
 	if showHelp != nil && *showHelp {
-		fmt.Println(helpSet)
+		fmt.Println(lastSubset)
 		os.Exit(0)
 	}
-	return nil
+	return lastSubset, nil
 }
 
 func (f *FlagSet) ParseStruct(val interface{}, args ...string) error {
@@ -528,9 +540,6 @@ func (f *FlagSet) writeToBuffer(buf *bytes.Buffer, indent string) {
 	}
 	var writeNames = func(indent, names string) {
 		write(indent, names)
-		//for l := len(names); l < f.maxFlagLen; l++ {
-		//	buf.WriteByte(' ')
-		//}
 	}
 
 	writeln(indent, fmt.Sprintf("%s [FLAG | SET]...", f.self.Names))

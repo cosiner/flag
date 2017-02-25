@@ -7,9 +7,11 @@ import (
 )
 
 func TestFlag(t *testing.T) {
-	args := argv.Argv("./flag -f 2 3 4")
-
-	cmdline := NewFlagSet(args[0], `test flags`)
+	argv, err := argv.Argv([]rune("./flag -f 2 3 4 barz"), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := argv[0]
 
 	type Flags struct {
 		A    bool     `names:"-a" usage:"A"`
@@ -25,7 +27,8 @@ func TestFlag(t *testing.T) {
 	}
 
 	var fs Flags
-	err := cmdline.ParseStruct(&fs, args...)
+	cmdline := NewFlagSet(args[0], `test flags`)
+	cmdline.ParseStruct(&fs, args...)
 	if err != nil {
 		t.Error(err)
 	} else {
