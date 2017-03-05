@@ -12,57 +12,88 @@ import (
 	"testing"
 
 	"github.com/cosiner/argv"
+	"github.com/cosiner/flag"
 )
 
 func TestFlag(t *testing.T) {
-	args := argv.Argv("./flag -f 2 3 4")
-
-	cmdline := NewFlagSet(args[0], `test flags`)
+	argv, err := argv.Argv([]rune("./flag  -h "), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := argv[0]
 
 	type Flags struct {
-		A    bool     `names:"-a" usage:"A"`
-		B    int      `names:"-b" usage:"B" default:"2" selects:"2,3,4"`
-		E    string   `names:"-e" usage:"E" default:"2" selects:"2,3,4"`
-		F    []string `names:"-f" usage:"F" default:"2" selects:"2,3,4"`
+		A   bool     `desc:"A is flag a" default:"true"`
+		B   bool     `args:"B"`
+		E   string   `desc:"E"`
+		F   []string `desc:"F\naa" default:"2" selects:"2,3,4"`
+		Foo struct {
+			Enable bool
+			FFoo   struct {
+				Enable bool
+			} `args:"FOO FOO" usage:"foo command" collapse:"true"`
+			BVarz struct {
+				Enable bool
+			} `args:"BARZ" usage:"barz command" collapse:"true" desc:"aaabbbbbbbbbbbbb\nbbbbbbbbbbccc\nddd"`
+		} `version:"v1.0.1" args:"FOO FOO" usage:"foo command" collapse:"true"`
 		Barz struct {
 			Enable bool
 
-			C []int    `names:"-c,  --col" desc:"tag list" usage:"C" default:"3,4,5" selects:"3,4,5"`
-			D []string `names:"-d" usage:"D" desc:"tag" default:"6,7,8"`
-		} `usage:"barz"`
+			C []int    `desc:"tag list" desc:"C" default:"3,4,5" selects:"3,4,5"`
+			D []string `desc:"D" desc:"tag" default:"6,7,8"`
+		} `args:"BARZ" usage:"barz command" collapse:"true" desc:"aaabbbbbbbbbbbbb\nbbbbbbbbbbccc\nddd"`
 	}
 
 	var fs Flags
-	err := cmdline.ParseStruct(&fs, args...)
-	if err != nil {
-		t.Error(err)
-	} else {
-		t.Logf(cmdline.String())
-	}
+	flag.NewFlagSet(flag.Flag{
+		Names: args[0],
+		Version: `
+	version: v1.0.0
+	commit: 10adf10dc10
+	date:   2017-01-01 10:00:01
+		`,
+		Usage: "Flag is a flag library.",
+		Desc: `
+		Flag is a simple flag library for Go.
+		It support slice, default value, and
+		selects.
+		`,
+	}).ParseStruct(&fs, args...)
 }
-
 ```
 ##### Output
 ```
-./flag [FLAG | SET]...
-    test flags
-          -a (bool)
-                A
-          -b (int; default: 2; selects: [2 3 4])
-                B
-          -e (string; default: 2; selects: [2 3 4])
-                E
-          -f ([]string; default: [2]; selects: [2 3 4])
-                F
-          -h, --help (bool)
-                show help
-    
-          barz [FLAG | SET]...
-          barz
-                -c, --col 'tag list' ([]int; default: [3 4 5]; selects: [3 4 5])
-                      C
-                -d tag ([]string; default: [6 7 8])
-                      D
+Flag is a flag library.
+
+Usage:
+      ./flag [FLAG|SET]...
+
+Version:
+      version: v1.0.0
+      commit: 10adf10dc10
+      date:   2017-01-01 10:00:01
+
+Description:
+      Flag is a simple flag library for Go.
+      It support slice, default value, and
+      selects.
+
+Flags:
+      -a            (bool; default: true)
+            A is flag a
+      -b            (bool)
+      -e            (string)
+            E
+      -f            ([]string; default: [2]; selects: [2 3 4])
+            F
+            aa
+      -h, --help    show help (bool)
+      -v, --verbose show verbose help (bool)
+
+Sets:
+      foo [SET]...   foo command
+      barz [FLAG]... barz command
+
 ```
 
 # LICENSE

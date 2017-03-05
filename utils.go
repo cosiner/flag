@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/cosiner/gohper/runtime2"
 )
 
 func isKindNumber(k reflect.Kind) bool {
@@ -57,49 +59,6 @@ func isSlicePtr(ptr interface{}) bool {
 	return refval.Kind() == reflect.Ptr && refval.Elem().Kind() == reflect.Slice
 }
 
-func splitAndTrimSpace(s, sep string) []string {
-	secs := strings.Split(s, sep)
-	for i := range secs {
-		secs[i] = strings.TrimSpace(secs[i])
-	}
-	return secs
-}
-
-func unexportedName(name string) string {
-	for _, r := range name {
-		if unicode.IsUpper(r) {
-			bs := []rune(name)
-			for i, r := range bs {
-				if unicode.IsUpper(r) {
-					bs[i] = unicode.ToLower(r)
-				} else {
-					break
-				}
-			}
-			return string(bs)
-		}
-	}
-	return name
-}
-
-func convertBool(val string) (string, error) {
-	switch strings.ToLower(val) {
-	case "true", "t", "yes", "y", "1":
-		return "true", nil
-	case "false", "f", "no", "n", "0":
-		return "false", nil
-	}
-	return "", fmt.Errorf("illegal boolean value: %s", val)
-}
-
-func parseBool(val string) (bool, error) {
-	val, err := convertBool(val)
-	if err != nil {
-		return false, err
-	}
-	return strconv.ParseBool(val)
-}
-
 func parseDefault(val, valsep string, ptr interface{}) (interface{}, error) {
 	if val == "" {
 		return nil, nil
@@ -130,7 +89,7 @@ func parseDefault(val, valsep string, ptr interface{}) (interface{}, error) {
 			}
 		}
 	}
-	return nil, errors.New("unsupported kind")
+	return nil, fmt.Errorf("unsupported kind: %s", refval.Kind())
 }
 
 func convertNumberSlice(val interface{}) []float64 {
@@ -197,30 +156,6 @@ func convertNumberSlice(val interface{}) []float64 {
 	return fs
 }
 
-func convertToFloats(vals []string) ([]float64, error) {
-	fs := make([]float64, 0, len(vals))
-	for _, v := range vals {
-		f, err := strconv.ParseFloat(v, 64)
-		if err != nil {
-			return nil, err
-		}
-		fs = append(fs, f)
-	}
-	return fs, nil
-}
-
-func convertToBools(vals []string) ([]bool, error) {
-	bs := make([]bool, 0, len(vals))
-	for _, v := range vals {
-		f, err := parseBool(v)
-		if err != nil {
-			return nil, err
-		}
-		bs = append(bs, f)
-	}
-	return bs, nil
-}
-
 func parseSelectsString(val, valsep string, ptr interface{}) (interface{}, error) {
 	if val == "" {
 		return nil, nil
@@ -256,13 +191,6 @@ func parseSelectsValue(ptr interface{}, val interface{}) (interface{}, error) {
 		}
 	}
 	return nil, errors.New("invalid selects")
-}
-
-func valSep(sep string) string {
-	if sep == "" {
-		return ","
-	}
-	return sep
 }
 
 func typeName(ptr interface{}) string {
@@ -419,7 +347,7 @@ func applyValToPtr(names string, ptr interface{}, val string, selects interface{
 	case *[]bool:
 		*v, err = append(*v, bl), berr
 	default:
-		err = errors.New("unsupported type")
+		err = fmt.Errorf("unsupported type: %t %s", ptr, runtime2.Caller(2))
 	}
 	if err != nil {
 		return fmt.Errorf("%s: %s", names, err.Error())
@@ -432,4 +360,75 @@ func applyValToPtr(names string, ptr interface{}, val string, selects interface{
 		}
 	}
 	return err
+}
+
+func splitAndTrimSpace(s, sep string) []string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	secs := strings.Split(s, sep)
+	for i := range secs {
+		secs[i] = strings.TrimSpace(secs[i])
+	}
+	return secs
+}
+
+func unexportedName(name string) string {
+	for _, r := range name {
+		if unicode.IsUpper(r) {
+			bs := []rune(name)
+			for i, r := range bs {
+				if unicode.IsUpper(r) {
+					bs[i] = unicode.ToLower(r)
+				} else {
+					break
+				}
+			}
+			return string(bs)
+		}
+	}
+	return name
+}
+
+func convertBool(val string) (string, error) {
+	switch strings.ToLower(val) {
+	case "true", "t", "yes", "y", "1":
+		return "true", nil
+	case "false", "f", "no", "n", "0":
+		return "false", nil
+	}
+	return "", fmt.Errorf("illegal boolean value: %s", val)
+}
+
+func parseBool(val string) (bool, error) {
+	val, err := convertBool(val)
+	if err != nil {
+		return false, err
+	}
+	return strconv.ParseBool(val)
+}
+
+func convertToFloats(vals []string) ([]float64, error) {
+	fs := make([]float64, 0, len(vals))
+	for _, v := range vals {
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil {
+			return nil, err
+		}
+		fs = append(fs, f)
+	}
+	return fs, nil
+}
+
+func convertToBools(vals []string) ([]bool, error) {
+	bs := make([]bool, 0, len(vals))
+	for _, v := range vals {
+		f, err := parseBool(v)
+		if err != nil {
+			return nil, err
+		}
+		bs = append(bs, f)
+	}
+	return bs, nil
 }
