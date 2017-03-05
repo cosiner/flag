@@ -15,9 +15,12 @@ type Flag struct {
 	Desc         string   // description
 	descLines    []string // parsed description lines
 	Version      string   // version
+	Important    bool     // important flag, will be print before unimportant flags
 	versionLines []string // parsed version lines
+	Expand       bool     // expand subsets in help message
 
 	Ptr     interface{} // value pointer
+	ArgsPtr *[]string   // NArgs pointer
 	Default interface{} // default value
 	Selects interface{} // select value
 	Env     string      // environment name
@@ -87,7 +90,6 @@ type FlagSet struct {
 	flags       []Flag
 	flagIndexes map[string]int
 
-	expand        bool
 	subsets       []FlagSet
 	subsetIndexes map[string]int
 
@@ -113,8 +115,8 @@ func newFlagSet(flag Flag) *FlagSet {
 	}
 }
 
-func (f *FlagSet) UpdateDesc(children, desc string) error {
-	return defaultReguster.updateDesc(f, children, desc)
+func (f *FlagSet) UpdateMeta(children string, meta Flag) error {
+	return defaultReguster.updateMeta(f, children, meta)
 }
 
 func (f *FlagSet) ErrHandling(ehs ...ErrorHandling) *FlagSet {
@@ -144,6 +146,10 @@ func (f *FlagSet) Flag(flag Flag) error {
 func (f *FlagSet) Subset(flag Flag) (*FlagSet, error) {
 	child, err := defaultReguster.registerSet(nil, f, flag)
 	return child, f.errorHandling.Handle(err)
+}
+
+type FlagMetadata interface {
+	Metadata() map[string]Flag
 }
 
 func (f *FlagSet) StructFlags(val interface{}) error {
@@ -187,13 +193,13 @@ func (f *FlagSet) ParseStruct(val interface{}, args ...string) error {
 }
 
 func (f *FlagSet) ToString(verbose bool) string {
-	w := writer{
-		buf:          bytes.NewBuffer(make([]byte, 0, 512)),
+	var buf bytes.Buffer
+	(&writer{
+		buf:          &buf,
 		isTop:        true,
 		forceVerbose: verbose,
-	}
-	w.writeSet(f)
-	return w.buf.String()
+	}).writeSet(f)
+	return buf.String()
 }
 
 func (f *FlagSet) Help(verbose bool) {

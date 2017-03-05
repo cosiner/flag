@@ -91,9 +91,28 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 			}
 			return fmt.Errorf("standalone flag without values: %v.%s", context, flag.Names)
 		}
+		hasFlag = func(args []argument) bool {
+			for i := range args {
+				if args[i].Type == argumentFlag {
+					return true
+				}
+			}
+			return false
+		}
+		appendRemainArgs = func(args []argument) error {
+			if f.self.ArgsPtr == nil || hasFlag(args[1:]) {
+				return fmt.Errorf("standalone value without flag: %v %s", context, args[0].Value)
+			}
+			slice := *f.self.ArgsPtr
+			for i := range args {
+				slice = append(slice, args[i].Value)
+			}
+			*f.self.ArgsPtr = slice
+			return nil
+		}
 	)
 
-	for _, arg := range args {
+	for i, arg := range args {
 		switch arg.Type {
 		case argumentFlag:
 			err = applyLastFlag()
@@ -111,13 +130,14 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 			argCount = 1
 		case argumentValue:
 			if flag == nil {
-				return fmt.Errorf("standalone value without flag: %v %s", context, arg.Value)
+				return appendRemainArgs(args[i:])
 			}
 			if argCount == 1 {
 				applied[flag] = true
 			} else if !isSlicePtr(flag.Ptr) {
-				return fmt.Errorf("flag %v.%s accept only one argument", context, flag.Names)
+				return appendRemainArgs(args[i:])
 			}
+
 			argCount++
 			err = r.applyVals(flag, arg.Value)
 			if err != nil {
