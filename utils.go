@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
-
-	"github.com/cosiner/gohper/runtime2"
 )
 
 func isKindNumber(k reflect.Kind) bool {
@@ -347,7 +345,7 @@ func applyValToPtr(names string, ptr interface{}, val string, selects interface{
 	case *[]bool:
 		*v, err = append(*v, bl), berr
 	default:
-		err = fmt.Errorf("unsupported type: %t %s", ptr, runtime2.Caller(2))
+		err = fmt.Errorf("unsupported type: %t %s", ptr)
 	}
 	if err != nil {
 		return fmt.Errorf("%s: %s", names, err.Error())
