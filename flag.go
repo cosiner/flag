@@ -178,7 +178,7 @@ func (f *FlagSet) Parse(args ...string) error {
 
 	show, verbose := defaultReguster.helpFlagValues(f)
 	if show {
-		fmt.Println(r.LastSet.ToString(verbose))
+		fmt.Print(r.LastSet.ToString(verbose))
 		os.Exit(0)
 	}
 	return nil
@@ -203,6 +203,6 @@ func (f *FlagSet) ToString(verbose bool) string {
 }
 
 func (f *FlagSet) Help(verbose bool) {
-	fmt.Println(f.ToString(verbose))
+	fmt.Print(f.ToString(verbose))
 	os.Exit(2)
 }

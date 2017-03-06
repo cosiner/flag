@@ -125,7 +125,9 @@ func (w *writer) writeFlagInfo(currIndent string, flag *Flag, isTop bool, args s
 	}
 	flagInfo := w.parseFlagInfo(flag, args)
 	w.writeWithPads(flagInfo, maxInfoLen)
-	if !isTop && flag.Usage != "" {
+	if isTop {
+		w.writeln()
+	} else if flag.Usage != "" {
 		w.write(" ", flag.Usage)
 	}
 }
@@ -176,10 +178,12 @@ func (w *writer) writeSet(f *FlagSet) {
 			w.writeln(currIndent, "Description:")
 		}
 		w.writeLines(flagIndent, f.self.descLines)
+		if flagCount > 0 || subsetCount > 0 {
+			w.writeln()
+		}
 	}
 
 	if flagCount > 0 {
-		w.writeln()
 		if w.isTop {
 			w.writeln(currIndent, "Flags:")
 		}
@@ -213,11 +217,13 @@ func (w *writer) writeSet(f *FlagSet) {
 				break
 			}
 		}
+		if subsetCount > 0 {
+			w.writeln()
+		}
 	}
 
 	if subsetCount > 0 {
 		if w.isTop {
-			w.writeln()
 			w.writeln(currIndent, "Sets:")
 		}
 		var (
@@ -229,16 +235,18 @@ func (w *writer) writeSet(f *FlagSet) {
 		for {
 			for i := range f.subsets {
 				set := &f.subsets[i]
-				if i != 0 && !outline {
-					w.writeln()
-				}
 				if important != set.self.Important {
 					continue
+				}
+				if i != 0 && !outline {
+					w.writeln()
 				}
 				if set.self.Important {
 					hasImportant = true
 				} else if hasImportant {
-					w.writeln()
+					if outline {
+						w.writeln()
+					}
 					hasImportant = false
 				}
 				nw := writer{
