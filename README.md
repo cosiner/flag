@@ -12,6 +12,7 @@ Documentation can be found at [Godoc](https://godoc.org/github.com/cosiner/flag)
 * Selectable values
 * Environment variable parsing
 * Infinite sub command levels
+* Structure parsing
 
 # Supported types
 * bool
@@ -132,8 +133,9 @@ func TestFlag(t *testing.T) {
 		`,
 	})
 	cmdline.ParseStruct(&fs, args...)
-	fmt.Printf("%s\n", cmdline.ToString(false))
 	fmt.Printf("%+v\n", fs)
+	
+	fmt.Printf("%s\n", cmdline.ToString(false))
 }
 
 ```

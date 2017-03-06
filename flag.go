@@ -55,7 +55,6 @@ const (
 	ErrPrint ErrorHandling = 1 << iota
 	ErrExit
 	ErrPanic
-	ErrIgnore
 
 	DefaultErrorHandling = ErrPrint | ErrExit
 )
@@ -64,7 +63,7 @@ func (e ErrorHandling) do(eh ErrorHandling) bool {
 	return e&eh != 0
 }
 
-func (e ErrorHandling) Handle(err error) error {
+func (e ErrorHandling) handle(err error) error {
 	if err == nil {
 		return nil
 	}
@@ -77,9 +76,6 @@ func (e ErrorHandling) Handle(err error) error {
 	}
 	if e.do(ErrExit) {
 		os.Exit(2)
-	}
-	if e.do(ErrIgnore) {
-		return nil
 	}
 	return err
 }
@@ -140,12 +136,12 @@ func (f *FlagSet) NeedHelpFlag(need bool) *FlagSet {
 }
 
 func (f *FlagSet) Flag(flag Flag) error {
-	return f.errorHandling.Handle(defaultReguster.registerFlag(nil, f, flag))
+	return f.errorHandling.handle(defaultReguster.registerFlag(nil, f, flag))
 }
 
 func (f *FlagSet) Subset(flag Flag) (*FlagSet, error) {
 	child, err := defaultReguster.registerSet(nil, f, flag)
-	return child, f.errorHandling.Handle(err)
+	return child, f.errorHandling.handle(err)
 }
 
 type FlagMetadata interface {
@@ -153,7 +149,7 @@ type FlagMetadata interface {
 }
 
 func (f *FlagSet) StructFlags(val interface{}) error {
-	return f.errorHandling.Handle(defaultReguster.registerStructure(nil, f, val, ""))
+	return f.errorHandling.handle(defaultReguster.registerStructure(nil, f, val, ""))
 }
 
 func (f *FlagSet) Parse(args ...string) error {
@@ -163,7 +159,7 @@ func (f *FlagSet) Parse(args ...string) error {
 	if !f.noHelpFlag && !f.helpFlagDefined {
 		err := defaultReguster.registerHelpFlags(nil, f)
 		if err != nil {
-			return f.errorHandling.Handle(err)
+			return f.errorHandling.handle(err)
 		}
 	}
 	var (
@@ -173,7 +169,7 @@ func (f *FlagSet) Parse(args ...string) error {
 	s.scan(f, args)
 	err := r.resolve(f, &s.Result)
 	if err != nil {
-		return f.errorHandling.Handle(err)
+		return f.errorHandling.handle(err)
 	}
 
 	show, verbose := defaultReguster.helpFlagValues(f)
@@ -204,5 +200,21 @@ func (f *FlagSet) ToString(verbose bool) string {
 
 func (f *FlagSet) Help(verbose bool) {
 	fmt.Print(f.ToString(verbose))
-	os.Exit(2)
+}
+
+func (f *FlagSet) Reset() {
+	var r resolver
+	r.reset(f)
+}
+
+var (
+	Commandline = NewFlagSet(Flag{})
+)
+
+func ParseStruct(val interface{}, args ...string) error {
+	return Commandline.ParseStruct(val, args...)
+}
+
+func Help(verbose bool) {
+	Commandline.Help(verbose)
 }

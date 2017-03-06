@@ -1,60 +1,127 @@
 package flag_test
 
 import (
-	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/cosiner/argv"
 	"github.com/cosiner/flag"
 )
 
-func TestFlag(t *testing.T) {
-	argv, err := argv.Argv([]rune("./flag  -ab false  -e 1  1234 5 6 7"), nil, nil)
+type Tar struct {
+	Args []string
+
+	GZ        bool   `names:"-z, --gz" usage:"gzip format"`
+	BZ        bool   `names:"-j, --bz" usage:"bzip2 format"`
+	XZ        bool   `names:"-J, --xz" usage:"xz format"`
+	Create    bool   `names:"-c" usage:"create tar file"`
+	Extract   bool   `names:"-x" usage:"extract tar file"`
+	File      string `names:"-f" usage:"output file for create or input file for extract"`
+	Directory string `names:"-C" usage:"extract directory"`
+}
+
+func (t *Tar) Metadata() map[string]flag.Flag {
+	const (
+		usage   = "tar is a tool for manipulate tape archives."
+		version = `
+			version: v1.0.0
+			commit: 10adf10dc10
+			date:   2017-01-01 10:00:01
+		`
+		desc = `
+		tar creates and manipulates streaming archive files.  This implementation can extract
+		from tar, pax, cpio, zip, jar, ar, and ISO 9660 cdrom images and can create tar, pax,
+        cpio, ar, and shar archives.
+		`
+	)
+	return map[string]flag.Flag{
+		"": {
+			Usage:   usage,
+			Version: version,
+			Desc:    desc,
+		},
+	}
+}
+
+func TestFlags(t *testing.T) {
+	var cases = []struct {
+		Env  map[string]string
+		Cmds []string
+		Tar
+	}{
+		{
+			Cmds: []string{
+				"tar -zcf a.tgz a b c",
+				"tar -zc -f=a.tgz a b c",
+				"tar -z -c -f a.tgz a b c",
+				"tar --gz -c -f a.tgz a b c",
+			},
+			Tar: Tar{
+				Args:   []string{"a", "b", "c"},
+				GZ:     true,
+				Create: true,
+				File:   "a.tgz",
+			},
+		},
+		{
+			Cmds: []string{
+				"tar -- -file -",
+			},
+			Tar: Tar{
+				Args: []string{"-file", "-"},
+			},
+		},
+		{
+			Cmds: []string{
+				"tar -- -file --",
+			},
+			Tar: Tar{
+				Args: []string{"-file", "--"},
+			},
+		},
+		{
+			Cmds: []string{
+				"tar - -z",
+			},
+			Tar: Tar{
+				GZ: true,
+			},
+		},
+		{
+			Cmds: []string{
+				"tar -Jxf a.txz -C /",
+				"tar -Jxf a.txz -C/",
+				"tar -Jxf a.txz -C=/",
+			},
+			Tar: Tar{
+				XZ:        true,
+				Extract:   true,
+				File:      "a.txz",
+				Directory: "/",
+			},
+		},
+	}
+	var tar Tar
+	flags := flag.NewFlagSet(flag.Flag{}).ErrHandling(0)
+	err := flags.StructFlags(&tar)
 	if err != nil {
 		t.Fatal(err)
 	}
-	args := argv[0]
 
-	type Flags struct {
-		Args []string
-
-		A   bool     `desc:"A is flag a" default:"true"`
-		B   bool     `args:"B"`
-		E   string   `desc:"E" important:"1"`
-		F   []string `desc:"F\naa" default:"2" selects:"2,3,4"`
-		Foo struct {
-			Enable bool
-			FFoo   struct {
-				Enable bool
-			} `args:"FOO FOO" usage:"foo command" collapse:"true"`
-			BVarz struct {
-				Enable bool
-			} `args:"BARZ" usage:"barz command" collapse:"true" desc:"aaabbbbbbbbbbbbb\nbbbbbbbbbbccc\nddd"`
-		} `version:"v1.0.1" args:"FOO FOO" usage:"foo command" collapse:"true"`
-		Barz struct {
-			Enable bool
-
-			C []int    `desc:"tag list" desc:"C" default:"3,4,5" selects:"3,4,5"`
-			D []string `desc:"D" desc:"tag" default:"6,7,8"`
-		} `args:"BARZ" important:"1" usage:"barz command" collapse:"true" desc:"aaabbbbbbbbbbbbb\nbbbbbbbbbbccc\nddd"`
+	for i, c := range cases {
+		for j, cmd := range c.Cmds {
+			argv, err := argv.Argv([]rune(cmd), c.Env, nil)
+			if err != nil {
+				t.Fatal(i, j, err)
+			}
+			err = flags.Parse(argv[0]...)
+			if err != nil {
+				t.Fatal(i, j, err)
+			}
+			if !reflect.DeepEqual(tar, c.Tar) {
+				t.Errorf("match failed: %d %d, expect: %+v, got %+v", i, j, c.Tar, tar)
+			}
+			flags.Reset()
+		}
 	}
-
-	var fs Flags
-	cmdline := flag.NewFlagSet(flag.Flag{
-		Names: args[0],
-		Version: `
-	version: v1.0.0
-	commit: 10adf10dc10
-	date:   2017-01-01 10:00:01
-		`,
-		Usage: "Flag is a flag library.",
-		Desc: `
-		Flag is a simple flag library for Go.
-		It support slice, default value, and
-		selects.
-		`,
-	})
-	cmdline.ParseStruct(&fs, args...)
-	fmt.Printf("%s\n", cmdline.ToString(false))
-	fmt.Printf("%+v\n", fs)
 }

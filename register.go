@@ -135,6 +135,7 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}, exclud
 		tagDefault = "default"
 		tagSelects = "selects"
 		tagExpand  = "expand"
+		tagArgs    = "args"
 
 		fieldSubsetEnable = "Enable"
 		fieldArgs         = "Args"
@@ -154,7 +155,22 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}, exclud
 		}
 
 		fieldVal := refval.Field(i)
-		if fieldType.Name == fieldArgs {
+
+		var (
+			args   = fieldType.Tag.Get(tagArgs)
+			isArgs bool
+			err    error
+		)
+		if args != "" {
+			isArgs, err = parseBool(args)
+			if err != nil {
+				return fmt.Errorf("non-bool tag args value: %s.%s %s", set.self.Names, fieldType.Name, args)
+			}
+		}
+		if fieldType.Name == fieldArgs || isArgs {
+			if set.self.ArgsPtr != nil {
+				return fmt.Errorf("duplicate args field: %s", set.self.Names)
+			}
 			if _, ok := fieldVal.Interface().([]string); !ok {
 				return fmt.Errorf("invalid %s:Args field type, expect []string", set.self.Names)
 			}

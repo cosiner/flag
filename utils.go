@@ -360,6 +360,67 @@ func applyValToPtr(names string, ptr interface{}, val string, selects interface{
 	return err
 }
 
+func resetPtrVal(ptr interface{}) {
+	switch v := ptr.(type) {
+	case *int:
+		*v = 0
+	case *int8:
+		*v = 0
+	case *int16:
+		*v = 0
+	case *int32:
+		*v = 0
+	case *int64:
+		*v = 0
+	case *uint:
+		*v = 0
+	case *uint8:
+		*v = 0
+	case *uint16:
+		*v = 0
+	case *uint32:
+		*v = 0
+	case *uint64:
+		*v = 0
+	case *float32:
+		*v = 0
+	case *float64:
+		*v = 0
+	case *[]int:
+		*v = nil
+	case *[]int8:
+		*v = nil
+	case *[]int16:
+		*v = nil
+	case *[]int32:
+		*v = nil
+	case *[]int64:
+		*v = nil
+	case *[]uint:
+		*v = nil
+	case *[]uint8:
+		*v = nil
+	case *[]uint16:
+		*v = nil
+	case *[]uint32:
+		*v = nil
+	case *[]uint64:
+		*v = nil
+	case *[]float32:
+		*v = nil
+	case *[]float64:
+		*v = nil
+	case *string:
+		*v = ""
+	case *[]string:
+		*v = nil
+	case *bool:
+		*v = false
+	case *[]bool:
+		*v = nil
+	}
+}
+
 func splitAndTrimSpace(s, sep string) []string {
 	s = strings.TrimSpace(s)
 	if s == "" {

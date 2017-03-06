@@ -87,6 +87,7 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 			}
 
 			if isBoolPtr(flag.Ptr) {
+				applied[flag] = true
 				return r.applyVals(flag, "true")
 			}
 			return fmt.Errorf("standalone flag without values: %v.%s", context, flag.Names)
@@ -130,12 +131,20 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 			argCount = 1
 		case argumentValue:
 			if flag == nil {
-				return appendRemainArgs(args[i:])
+				err = appendRemainArgs(args[i:])
+				if err != nil {
+					return err
+				}
+				goto END
 			}
 			if argCount == 1 {
 				applied[flag] = true
 			} else if !isSlicePtr(flag.Ptr) {
-				return appendRemainArgs(args[i:])
+				err = appendRemainArgs(args[i:])
+				if err != nil {
+					return err
+				}
+				goto END
 			}
 
 			argCount++
@@ -151,7 +160,7 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 	if err != nil {
 		return err
 	}
-
+END:
 	return r.applyEnvOrDefault(f, applied)
 }
 
@@ -190,4 +199,16 @@ func (r *resolver) resolve(f *FlagSet, args *scanArgs) error {
 	var err error
 	r.LastSet, err = r.resolveSet(f, nil, args)
 	return err
+}
+
+func (r *resolver) reset(f *FlagSet) {
+	if f.self.ArgsPtr != nil {
+		*f.self.ArgsPtr = nil
+	}
+	for i := range f.flags {
+		resetPtrVal(f.flags[i].Ptr)
+	}
+	for i := range f.subsets {
+		r.reset(&f.subsets[i])
+	}
 }

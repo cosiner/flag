@@ -125,15 +125,16 @@ func (w *writer) writeFlagInfo(currIndent string, flag *Flag, isTop bool, args s
 	}
 	flagInfo := w.parseFlagInfo(flag, args)
 	w.writeWithPads(flagInfo, maxInfoLen)
-	if isTop {
-		w.writeln()
-	} else if flag.Usage != "" {
+	if !isTop && flag.Usage != "" {
 		w.write(" ", flag.Usage)
 	}
 }
 
 func (w *writer) writeFlagValueInfo(flag *Flag) {
-	w.write(" (", typeName(flag.Ptr))
+	if flag.Usage != "" {
+		w.write(" ")
+	}
+	w.write("(", typeName(flag.Ptr))
 	if flag.Env != "" {
 		fmt.Fprintf(w.buf, "; env: %s", flag.Env)
 		if isSlicePtr(flag.Ptr) {
@@ -151,11 +152,13 @@ func (w *writer) writeFlagValueInfo(flag *Flag) {
 
 func (w *writer) writeSet(f *FlagSet) {
 	var (
-		currIndent  = w.inheritIndent
-		flagIndent  = w.nextIndent(currIndent)
-		outline     = !f.self.Expand && !w.forceVerbose
-		flagCount   = len(f.flags)
-		subsetCount = len(f.subsets)
+		currIndent       = w.inheritIndent
+		flagIndent       = w.nextIndent(currIndent)
+		outline          = !f.self.Expand && !w.forceVerbose
+		flagCount        = len(f.flags)
+		subsetCount      = len(f.subsets)
+		versionLineCount = len(f.self.versionLines)
+		descLineCount    = len(f.self.descLines)
 	)
 
 	w.writeFlagInfo(currIndent, &f.self, w.isTop, w.arglist(f), w.maxInfoLen)
@@ -164,26 +167,26 @@ func (w *writer) writeSet(f *FlagSet) {
 	if outline && !w.isTop {
 		return
 	}
-	if w.isTop && len(f.self.versionLines) > 0 {
-		w.writeln()
-		w.writeln(currIndent, "Version:")
-		w.writeLines(flagIndent, f.self.versionLines)
+	if versionLineCount > 0 {
+		if w.isTop {
+			w.writeln()
+			w.writeln(currIndent, "Version:")
+			w.writeLines(flagIndent, f.self.versionLines)
+		}
 	}
 
-	if len(f.self.descLines) > 0 {
-		if w.isTop || !outline {
-			w.writeln()
-		}
+	if descLineCount > 0 {
 		if w.isTop {
+			w.writeln()
 			w.writeln(currIndent, "Description:")
 		}
 		w.writeLines(flagIndent, f.self.descLines)
-		if flagCount > 0 || subsetCount > 0 {
-			w.writeln()
-		}
 	}
 
 	if flagCount > 0 {
+		if versionLineCount > 0 || descLineCount > 0 || w.isTop {
+			w.writeln()
+		}
 		if w.isTop {
 			w.writeln(currIndent, "Flags:")
 		}
@@ -217,12 +220,12 @@ func (w *writer) writeSet(f *FlagSet) {
 				break
 			}
 		}
-		if subsetCount > 0 {
-			w.writeln()
-		}
 	}
 
 	if subsetCount > 0 {
+		if (w.isTop && versionLineCount > 0) || descLineCount > 0 || flagCount > 0 {
+			w.writeln()
+		}
 		if w.isTop {
 			w.writeln(currIndent, "Sets:")
 		}
@@ -238,15 +241,11 @@ func (w *writer) writeSet(f *FlagSet) {
 				if important != set.self.Important {
 					continue
 				}
-				if i != 0 && !outline {
-					w.writeln()
-				}
+
 				if set.self.Important {
 					hasImportant = true
 				} else if hasImportant {
-					if outline {
-						w.writeln()
-					}
+					w.writeln()
 					hasImportant = false
 				}
 				nw := writer{
