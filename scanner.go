@@ -1,10 +1,6 @@
 package flag
 
-import (
-	"bytes"
-	"fmt"
-	"strings"
-)
+import "strings"
 
 const (
 	argumentFlagSplittable = iota + 1
@@ -26,20 +22,6 @@ type scanArgs struct {
 	Flags       []argument
 	FirstSubset string
 	Sets        map[string]*scanArgs
-}
-
-func (s scanArgs) toBuffer(indent string, buf *bytes.Buffer) {
-	fmt.Fprintf(buf, "%+v\n", s.Flags)
-	for _, set := range s.Sets {
-		buf.WriteString(indent + "   ")
-		set.toBuffer(indent+"    ", buf)
-	}
-}
-
-func (s scanArgs) String() string {
-	var buf bytes.Buffer
-	s.toBuffer("", &buf)
-	return buf.String()
 }
 
 type scanner struct {
@@ -116,9 +98,6 @@ func (s *scanner) tryAppendFlagOrSubset(f *FlagSet, arg argument, mustAppend boo
 	return s.reverseIterStack(f, func(currSet *FlagSet, i int) (result, continu bool) {
 		if currSet == nil {
 			if mustAppend {
-				if arg.Type == argumentReserve {
-					arg.Type = argumentValue
-				}
 				s.appendArg(arg, false)
 			}
 			return mustAppend, false

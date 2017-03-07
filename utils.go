@@ -1,8 +1,6 @@
 package flag
 
 import (
-	"errors"
-	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -61,33 +59,47 @@ func parseDefault(val, valsep string, ptr interface{}) (interface{}, error) {
 	if val == "" {
 		return nil, nil
 	}
+
+	var (
+		defval  interface{}
+		err     error
+		invalid bool
+	)
+
 	refval := reflect.ValueOf(ptr).Elem()
 	switch refval.Kind() {
 	case reflect.String:
-		return val, nil
+		defval = val
 	case reflect.Bool:
-		b, err := parseBool(val)
-		return b, err
+		b, e := parseBool(val)
+		defval, err = b, e
 	default:
-		if isKindNumber(refval.Kind()) {
-			return strconv.ParseFloat(val, 64)
+		if invalid = !isKindNumber(refval.Kind()); !invalid {
+			f, e := strconv.ParseFloat(val, 64)
+			defval, err = f, e
 		}
 	case reflect.Slice:
 		vals := splitAndTrimSpace(val, valsep)
 		switch k := sliceElemKind(refval); k {
 		case reflect.String:
-			return vals, nil
+			defval = vals
 		case reflect.Bool:
-			bs, err := convertToBools(vals)
-			return bs, err
+			bs, e := convertToBools(vals)
+			defval, err = bs, e
 		default:
-			if isKindNumber(k) {
-				fs, err := convertToFloats(vals)
-				return fs, err
+			if invalid = !isKindNumber(k); !invalid {
+				fs, e := convertToFloats(vals)
+				defval, err = fs, e
 			}
 		}
 	}
-	return nil, fmt.Errorf("unsupported kind: %s", refval.Kind())
+	if err != nil {
+		return defval, newErrorf(errInvalidDefault, err.Error())
+	}
+	if invalid {
+		return nil, newErrorf(errInvalidType, "unsupported kind: %s %s", val, refval.Kind())
+	}
+	return defval, nil
 }
 
 func convertNumberSlice(val interface{}) []float64 {
@@ -166,9 +178,13 @@ func parseSelectsString(val, valsep string, ptr interface{}) (interface{}, error
 	case k == reflect.String:
 		return vals, nil
 	case isKindNumber(k):
-		return convertToFloats(vals)
+		ns, err := convertToFloats(vals)
+		if err != nil {
+			return nil, newErrorf(errInvalidSelects, err.Error())
+		}
+		return ns, nil
 	}
-	return nil, fmt.Errorf("doesn't support select: %s", k.String())
+	return nil, newErrorf(errInvalidType, "doesn't support select: %s", k.String())
 }
 
 func parseSelectsValue(ptr interface{}, val interface{}) (interface{}, error) {
@@ -188,7 +204,7 @@ func parseSelectsValue(ptr interface{}, val interface{}) (interface{}, error) {
 			return vals, nil
 		}
 	}
-	return nil, errors.New("invalid selects")
+	return nil, newErrorf(errInvalidSelects, "invalid selects")
 }
 
 func typeName(ptr interface{}) string {
@@ -281,7 +297,7 @@ func applyValToPtr(names string, ptr interface{}, val string, selects interface{
 	if isBoolPtr(ptr) {
 		val, err = convertBool(val)
 		if err != nil {
-			return fmt.Errorf("%s: %s", names, err.Error())
+			return newErrorf(errInvalidValue, "%s: %s", names, err.Error())
 		}
 	}
 
@@ -345,16 +361,19 @@ func applyValToPtr(names string, ptr interface{}, val string, selects interface{
 	case *[]bool:
 		*v, err = append(*v, bl), berr
 	default:
-		err = fmt.Errorf("unsupported type: %t %s", ptr)
+		err = newErrorf(errInvalidType, "unsupported flag type:%s %t", names, ptr)
 	}
 	if err != nil {
-		return fmt.Errorf("%s: %s", names, err.Error())
+		if _, ok := err.(flagError); !ok {
+			err = newErrorf(errInvalidValue, "%s: %s", names, err.Error())
+		}
+		return err
 	}
 	if selects != nil {
 		refval := reflect.ValueOf(ptr).Elem()
 		k := sliceElemKind(refval)
 		if !checkSelects(k, selects, val, flt) {
-			return fmt.Errorf("%s: invalid value %s of %v", names, val, selects)
+			return newErrorf(errInvalidValue, "%s: invalid value %s of %v", names, val, selects)
 		}
 	}
 	return err
@@ -457,7 +476,7 @@ func convertBool(val string) (string, error) {
 	case "false", "f", "no", "n", "0":
 		return "false", nil
 	}
-	return "", fmt.Errorf("illegal boolean value: %s", val)
+	return "", newErrorf(errInvalidValue, "illegal boolean value: %s", val)
 }
 
 func parseBool(val string) (bool, error) {

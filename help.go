@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-const minInfoLen = 8
+const minInfoLen = 12
 
 type writer struct {
 	buf           *bytes.Buffer

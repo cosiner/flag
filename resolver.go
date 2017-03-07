@@ -6,6 +6,8 @@ import (
 	"reflect"
 )
 
+var envParser = os.Getenv
+
 type resolver struct {
 	LastSet *FlagSet
 }
@@ -27,7 +29,7 @@ func (r *resolver) fromDefault(f *Flag) []string {
 }
 
 func (r *resolver) fromEnv(f *Flag) []string {
-	val := os.Getenv(f.Env)
+	val := envParser(f.Env)
 	if val == "" {
 		return nil
 	}
@@ -90,7 +92,7 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 				applied[flag] = true
 				return r.applyVals(flag, "true")
 			}
-			return fmt.Errorf("standalone flag without values: %v.%s", context, flag.Names)
+			return newErrorf(errStandaloneFLag, "standalone flag without values: %v.%s", context, flag.Names)
 		}
 		hasFlag = func(args []argument) bool {
 			for i := range args {
@@ -102,7 +104,7 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 		}
 		appendRemainArgs = func(args []argument) error {
 			if f.self.ArgsPtr == nil || hasFlag(args[1:]) {
-				return fmt.Errorf("standalone value without flag: %v %s", context, args[0].Value)
+				return newErrorf(errStandaloneValue, "standalone value without flag: %v %s", context, args[0].Value)
 			}
 			slice := *f.self.ArgsPtr
 			for i := range args {
@@ -123,10 +125,10 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 
 			flag = f.searchFlag(arg.Value)
 			if flag == nil {
-				return fmt.Errorf("unsupported flag: %v.%s", context, arg.Value)
+				return newErrorf(errFlagNotFound, "unsupported flag: %v.%s", context, arg.Value)
 			}
 			if applied[flag] && !isSlicePtr(flag.Ptr) {
-				return fmt.Errorf("duplicate flag: %v.%s", context, flag.Names)
+				return newErrorf(errDuplicateFlagParsed, "duplicate flag: %v.%s", context, flag.Names)
 			}
 			argCount = 1
 		case argumentValue:
@@ -153,7 +155,7 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 				return err
 			}
 		default:
-			return fmt.Errorf("illegal argument type: %s %v", arg.Value, arg.Type)
+			panic("unreachable")
 		}
 	}
 	err = applyLastFlag()
@@ -205,6 +207,7 @@ func (r *resolver) reset(f *FlagSet) {
 	if f.self.ArgsPtr != nil {
 		*f.self.ArgsPtr = nil
 	}
+	resetPtrVal(f.self.Ptr)
 	for i := range f.flags {
 		resetPtrVal(f.flags[i].Ptr)
 	}

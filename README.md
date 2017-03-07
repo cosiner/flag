@@ -19,6 +19,7 @@ Documentation can be found at [Godoc](https://godoc.org/github.com/cosiner/flag)
 * string
 * integer, unsigned integer and float (int8, int16, int32, int64, int, uint..., float32, float64)
 * slice of above types
+* embed structure as sub-flagset.
 
 # Argument splitting rules
 * `-` identify that the next argument must be a flag. It's a value if it's the last argument. 
@@ -64,87 +65,76 @@ Documentation can be found at [Godoc](https://godoc.org/github.com/cosiner/flag)
     nil if don't need and error will be reported automatically.
   
 * FlagMeta
-```Go
-type FlagMetadata interface {
-    // the key can be flag group split by ',' E.g. "" and "build, -o", the "" is for
-    // root FlagSet. Only Arglist, Usage, Desc, Version will be updated.
-    Metadata() map[string]Flag 
-}
-````
-  Structure can implement the FlagMetadata method to update flag metadata instead write in structure tag, it's designed
+  Structure can implement the Metadata interface to update flag metadata instead write in structure tag, it's designed
   for long messages.
    
   
 # Code
 ```Go
+package flag
 
-import (
-	"fmt"
-	"testing"
+import "fmt"
 
-	"github.com/cosiner/argv"
-	"github.com/cosiner/flag"
-)
+type Tar struct {
+	GZ          bool     `names:"-z, --gz" usage:"gzip format"`
+	BZ          bool     `names:"-j, --bz" usage:"bzip2 format"`
+	XZ          bool     `names:"-J, --xz" usage:"xz format"`
+	Create      bool     `names:"-c" usage:"create tar file"`
+	Extract     bool     `names:"-x" usage:"extract tar file"`
+	File        string   `names:"-f" usage:"output file for create or input file for extract"`
+	Directory   string   `names:"-C" usage:"extract directory"`
+	SourceFiles []string `args:"true"`
+}
 
-func TestFlag(t *testing.T) {
-	argv, err := argv.Argv([]rune("./flag  -ab false  -e 1  1234 5 6 7"), nil, nil)
-	if err != nil {
-		t.Fatal(err)
+func (t *Tar) Metadata() map[string]Flag {
+	const (
+		usage   = "tar is a tool for manipulate tape archives."
+		version = `
+			version: v1.0.0
+			commit: 10adf10dc10
+			date:   2017-01-01 10:00:01
+		`
+		desc = `
+		tar creates and manipulates streaming archive files.  This implementation can extract
+		from tar, pax, cpio, zip, jar, ar, and ISO 9660 cdrom images and can create tar, pax,
+        cpio, ar, and shar archives.
+		`
+	)
+	return map[string]Flag{
+		"": {
+			Usage:   usage,
+			Version: version,
+			Desc:    desc,
+		},
+		"--gz": {
+			Desc: "use gzip format",
+		},
 	}
-	args := argv[0]
+}
 
-	type Flags struct {
-		Args []string
+func ExampleFlagSet_ParseStruct() {
+	var tar Tar
 
-		A   bool     `desc:"A is flag a" default:"true"`
-		B   bool     `args:"B"`
-		E   string   `desc:"E" important:"1"`
-		F   []string `desc:"F\naa" default:"2" selects:"2,3,4"`
-		Foo struct {
-			Enable bool
-			FFoo   struct {
-				Enable bool
-			} `args:"FOO FOO" usage:"foo command" collapse:"true"`
-			BVarz struct {
-				Enable bool
-			} `args:"BARZ" usage:"barz command" collapse:"true" desc:"aaabbbbbbbbbbbbb\nbbbbbbbbbbccc\nddd"`
-		} `version:"v1.0.1" args:"FOO FOO" usage:"foo command" collapse:"true"`
-		Barz struct {
-			Enable bool
+	ParseStruct(&tar, "tar", "-zcf", "a.tgz", "a.go", "b.go")
+	fmt.Println(tar.GZ)
+	fmt.Println(tar.Create)
+	fmt.Println(tar.File)
+	fmt.Println(tar.SourceFiles)
 
-			C []int    `desc:"tag list" desc:"C" default:"3,4,5" selects:"3,4,5"`
-			D []string `desc:"D" desc:"tag" default:"6,7,8"`
-		} `args:"BARZ" important:"1" usage:"barz command" collapse:"true" desc:"aaabbbbbbbbbbbbb\nbbbbbbbbbbccc\nddd"`
-	}
-
-	var fs Flags
-	cmdline := flag.NewFlagSet(flag.Flag{
-		Names: args[0],
-		Version: `
-	version: v1.0.0
-	commit: 10adf10dc10
-	date:   2017-01-01 10:00:01
-		`,
-		Usage: "Flag is a flag library.",
-		Desc: `
-		Flag is a simple flag library for Go.
-		It support slice, default value, and
-		selects.
-		`,
-	})
-	cmdline.ParseStruct(&fs, args...)
-	fmt.Printf("%+v\n", fs)
-	
-	fmt.Printf("%s\n", cmdline.ToString(false))
+	// Output:
+	// true
+	// true
+	// a.tgz
+	// [a.go b.go]
 }
 
 ```
-## Output
+## Help message
 ```
-Flag is a flag library.
+tar is a tool for manipulate tape archives.
 
 Usage:
-      ./flag [FLAG|SET]...
+      flag.test [FLAG]...
 
 Version:
       version: v1.0.0
@@ -152,29 +142,19 @@ Version:
       date:   2017-01-01 10:00:01
 
 Description:
-      Flag is a simple flag library for Go.
-      It support slice, default value, and
-      selects.
+      tar creates and manipulates streaming archive files.  This implementation can extract
+      from tar, pax, cpio, zip, jar, ar, and ISO 9660 cdrom images and can create tar, pax,
+            cpio, ar, and shar archives.
 
 Flags:
-      -e            (string)
-            E
-
-      -a            (bool; default: true)
-            A is flag a
-      -b            (bool)
-      -f            ([]string; default: [2]; selects: [2 3 4])
-            F
-            aa
-      -h, --help    show help (bool)
-      -v, --verbose show verbose help (bool)
-
-Sets:
-      barz [FLAG]... barz command
-
-      foo [SET]...   foo command
-
-{Args:[1234 5 6 7] A:true B:false E:1 F:[] Foo:{Enable:false FFoo:{Enable:false} BVarz:{Enable:false}} Barz:{Enable:false C:[] D:[]}}
+      -z, --gz     gzip format (bool)
+            use gzip format
+      -j, --bz     bzip2 format (bool)
+      -J, --xz     xz format (bool)
+      -c           create tar file (bool)
+      -x           extract tar file (bool)
+      -f           output file for create or input file for extract (string)
+      -C           extract directory (string)
 ```
 
 # LICENSE

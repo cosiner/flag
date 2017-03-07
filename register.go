@@ -1,8 +1,6 @@
 package flag
 
 import (
-	"errors"
-	"fmt"
 	"go/ast"
 	"reflect"
 	"strings"
@@ -65,10 +63,10 @@ func (r register) cleanFlag(flag *Flag) {
 func (r register) registerFlag(parent, set *FlagSet, flag Flag) error {
 	refval := reflect.ValueOf(flag.Ptr)
 	if refval.Kind() != reflect.Ptr {
-		return fmt.Errorf("illegal flag pointer: %s", flag.Names)
+		return newErrorf(errNonPointer, "illegal flag pointer: %s", flag.Names)
 	}
 	if typeName(flag.Ptr) == "" {
-		return fmt.Errorf("unsupported flag type: %s", flag.Names)
+		return newErrorf(errInvalidType, "unsupported flag type: %s", flag.Names)
 	}
 	if flag.Default != nil {
 		var compatible bool
@@ -81,20 +79,20 @@ func (r register) registerFlag(parent, set *FlagSet, flag Flag) error {
 			compatible = isKindCompatible(refval.Elem().Kind(), refdef.Kind())
 		}
 		if !compatible {
-			return fmt.Errorf("incompatible default value type: %s", flag.Names)
+			return newErrorf(errInvalidType, "incompatible default value type: %s", flag.Names)
 		}
 	}
 	if flag.Selects != nil {
 		var err error
 		flag.Selects, err = parseSelectsValue(flag.Ptr, flag.Selects)
 		if err != nil {
-			return fmt.Errorf("%s: %s", flag.Names, err.Error())
+			return newErrorf(errInvalidSelects, "%s: %s", flag.Names, err.Error())
 		}
 	}
 
 	ns, names := r.cleanFlagNames(flag.Names)
 	if duplicates := r.findDuplicates(parent, set, ns); len(duplicates) > 0 {
-		return fmt.Errorf("duplicate flags with parent/self/childs: %v", duplicates)
+		return newErrorf(errDuplicateFlagRegister, "duplicate flags with parent/self/childs: %v", duplicates)
 	}
 
 	flag.Names = names
@@ -109,7 +107,7 @@ func (r register) registerSet(parent, set *FlagSet, flag Flag) (*FlagSet, error)
 	var ns []string
 	ns, flag.Names = r.cleanFlagNames(flag.Names)
 	if duplicates := r.findDuplicates(parent, set, ns); len(duplicates) > 0 {
-		return nil, fmt.Errorf("duplicate subset name: %v", duplicates)
+		return nil, newErrorf(errDuplicateFlagRegister, "duplicate subset name: %v", duplicates)
 	}
 
 	child := newFlagSet(flag)
@@ -143,7 +141,7 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}, exclud
 
 	refval := reflect.ValueOf(st)
 	if refval.Kind() != reflect.Ptr || refval.Elem().Kind() != reflect.Struct {
-		return errors.New("not pointer of structure")
+		return newErrorf(errNonPointer, "not pointer of structure")
 	}
 	refval = refval.Elem()
 	reftyp := refval.Type()
@@ -164,15 +162,15 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}, exclud
 		if args != "" {
 			isArgs, err = parseBool(args)
 			if err != nil {
-				return fmt.Errorf("non-bool tag args value: %s.%s %s", set.self.Names, fieldType.Name, args)
+				return newErrorf(errInvalidValue, "non-bool tag args value: %s.%s %s", set.self.Names, fieldType.Name, args)
 			}
 		}
 		if fieldType.Name == fieldArgs || isArgs {
 			if set.self.ArgsPtr != nil {
-				return fmt.Errorf("duplicate args field: %s", set.self.Names)
+				return newErrorf(errDuplicateFlagRegister, "duplicate args field: %s", set.self.Names)
 			}
 			if _, ok := fieldVal.Interface().([]string); !ok {
-				return fmt.Errorf("invalid %s:Args field type, expect []string", set.self.Names)
+				return newErrorf(errInvalidType, "invalid %s:Args field type, expect []string", set.self.Names)
 			}
 			set.self.ArgsPtr = fieldVal.Addr().Interface().(*[]string)
 			continue
@@ -238,7 +236,7 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}, exclud
 		} else {
 			enableFieldVal := fieldVal.FieldByName(fieldSubsetEnable)
 			if enableFieldVal.Kind() != reflect.Bool {
-				return fmt.Errorf("illegal child field type: %s", fieldSubsetEnable)
+				return newErrorf(errInvalidType, "illegal child field type: %s", fieldSubsetEnable)
 			}
 			var (
 				expand = fieldType.Tag.Get(tagExpand)
@@ -252,7 +250,7 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}, exclud
 			}
 			expandVal, err := parseBool(expand)
 			if err != nil {
-				return fmt.Errorf("parse expand value %s as bool failed", expand)
+				return newErrorf(errInvalidValue, "parse expand value %s as bool failed", expand)
 			}
 			child, err := r.registerSet(parent, set, Flag{
 				Names:     names,
@@ -274,7 +272,7 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}, exclud
 			}
 		}
 	}
-	if md, ok := st.(FlagMetadata); ok {
+	if md, ok := st.(Metadata); ok {
 		for children, meta := range md.Metadata() {
 			err := r.updateMeta(set, children, meta)
 			if err != nil {
@@ -332,7 +330,7 @@ func (r register) prefixSpaceCount(s string) int {
 	var c int
 	for _, r := range s {
 		if unicode.IsSpace(r) {
-			c += 1
+			c++
 		} else {
 			break
 		}
@@ -398,11 +396,11 @@ func (r register) searchChildrenFlag(set *FlagSet, children string) (*Flag, bool
 			continue
 		}
 		if i != last {
-			return nil, false, fmt.Errorf("subset %s is not found", sec)
+			return nil, false, newErrorf(errFlagNotFound, "subset %s is not found", sec)
 		}
 		index, has = currSet.flagIndexes[sec]
 		if !has {
-			return nil, false, fmt.Errorf("subset or flag %s is not found", sec)
+			return nil, false, newErrorf(errFlagNotFound, "subset or flag %s is not found", sec)
 		}
 		currFlag = &currSet.flags[index]
 	}

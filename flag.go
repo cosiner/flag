@@ -9,22 +9,26 @@ import (
 
 // Flag represents the state of a flag
 type Flag struct {
-	Names        string   // names
-	Arglist      string   // arguments list
-	Usage        string   // usage
-	Desc         string   // description
-	descLines    []string // parsed description lines
-	Version      string   // version
-	Important    bool     // important flag, will be print before unimportant flags
-	versionLines []string // parsed version lines
-	Expand       bool     // expand subsets in help message
+	// Common fields used for Flag and FlagSet
+	Names     string      // names, split by ','
+	Arglist   string      // arguments list
+	Usage     string      // short usage message
+	Desc      string      // long description, can be multiple lines
+	descLines []string    // parsed description lines
+	Important bool        // important flag, will be print before unimportant flags
+	Ptr       interface{} // value pointer
 
-	Ptr     interface{} // value pointer
-	ArgsPtr *[]string   // NArgs pointer
+	// For Flag
 	Default interface{} // default value
 	Selects interface{} // select value
 	Env     string      // environment name
 	ValSep  string      // environment value separator
+
+	// For FlagSet
+	Version      string    // version, can be multiple lines
+	versionLines []string  // parsed version lines
+	Expand       bool      // expand subsets in help message
+	ArgsPtr      *[]string // NArgs pointer
 }
 
 func (f *FlagSet) searchFlag(name string) *Flag {
@@ -49,13 +53,20 @@ func (f *FlagSet) isFlagOrSubset(name string) bool {
 	return f.isFlag(name) || f.isSubset(name)
 }
 
-type ErrorHandling uint16
+// ErrorHandling is the error handling way when error occurred when register/scan/resolve.
+//
+// ErrorHandling can be set of basic handling way, the way sequence is ErrPanic, ErrPrint, ErrExit.
+type ErrorHandling uint8
 
 const (
-	ErrPrint ErrorHandling = 1 << iota
+	// ErrPanic panic goroutine with the error
+	ErrPanic ErrorHandling = 1 << iota
+	// ErrPrint print the error to stdout
+	ErrPrint
+	// ErrExit exit process
 	ErrExit
-	ErrPanic
 
+	// DefaultErrorHandling includes ErrPrint and ErrExit
 	DefaultErrorHandling = ErrPrint | ErrExit
 )
 
@@ -80,6 +91,7 @@ func (e ErrorHandling) handle(err error) error {
 	return err
 }
 
+// FlagSet is a set of flags and other subsets.
 type FlagSet struct {
 	self Flag
 
@@ -94,6 +106,7 @@ type FlagSet struct {
 	helpFlagDefined bool
 }
 
+// NewFlagSet create a new flagset
 func NewFlagSet(flag Flag) *FlagSet {
 	if flag.Names == "" {
 		flag.Names = filepath.Base(os.Args[0])
@@ -111,10 +124,17 @@ func newFlagSet(flag Flag) *FlagSet {
 	}
 }
 
+// UpdateMeta update flag metadata by the children identifier, only Desc, Arglist,
+// Usage and Version will be updated.
+// The children identifier will be split by ',', if children is empty, it update
+// itself.
+//
+// E.g., "tool, cover, -html: Flag{Usage:"display coverage in html}
 func (f *FlagSet) UpdateMeta(children string, meta Flag) error {
 	return defaultReguster.updateMeta(f, children, meta)
 }
 
+// ErrHandling change the way of error handling
 func (f *FlagSet) ErrHandling(ehs ...ErrorHandling) *FlagSet {
 	var e ErrorHandling
 	for _, eh := range ehs {
@@ -127,6 +147,8 @@ func (f *FlagSet) ErrHandling(ehs ...ErrorHandling) *FlagSet {
 	return f
 }
 
+// NeedHelpFlag toggle help flags auto-defining. By default, if there is no help flag, it will
+// be defined when Parse is called.
 func (f *FlagSet) NeedHelpFlag(need bool) *FlagSet {
 	f.noHelpFlag = !need
 	for i := range f.subsets {
@@ -135,23 +157,30 @@ func (f *FlagSet) NeedHelpFlag(need bool) *FlagSet {
 	return f
 }
 
+// Flag add a flag to current flagset, it should not duplicate with parent/current/children levels' flag or flagset.
 func (f *FlagSet) Flag(flag Flag) error {
 	return f.errorHandling.handle(defaultReguster.registerFlag(nil, f, flag))
 }
 
+// Subset add a flagset to current flagset and return the subset
 func (f *FlagSet) Subset(flag Flag) (*FlagSet, error) {
 	child, err := defaultReguster.registerSet(nil, f, flag)
 	return child, f.errorHandling.handle(err)
 }
 
-type FlagMetadata interface {
+// Metadata can be implemented by structure to update flag metadata.
+type Metadata interface {
+	// Metadata return the metadata map to be updated.
+	// The return value is a map of children and metadata.
 	Metadata() map[string]Flag
 }
 
+// StructFlags parse the structure pointer and add exported fields to flagset.
 func (f *FlagSet) StructFlags(val interface{}) error {
 	return f.errorHandling.handle(defaultReguster.registerStructure(nil, f, val, ""))
 }
 
+// Parse parse arguments, if empty, os.Args will be used.
 func (f *FlagSet) Parse(args ...string) error {
 	if len(args) == 0 {
 		args = os.Args
@@ -180,6 +209,7 @@ func (f *FlagSet) Parse(args ...string) error {
 	return nil
 }
 
+// ParseStruct is the combination of StructFlags and Parse
 func (f *FlagSet) ParseStruct(val interface{}, args ...string) error {
 	err := f.StructFlags(val)
 	if err != nil {
@@ -188,6 +218,7 @@ func (f *FlagSet) ParseStruct(val interface{}, args ...string) error {
 	return f.Parse(args...)
 }
 
+// ToString return help message, if verbose, all subset will be expand.
 func (f *FlagSet) ToString(verbose bool) string {
 	var buf bytes.Buffer
 	(&writer{
@@ -198,23 +229,28 @@ func (f *FlagSet) ToString(verbose bool) string {
 	return buf.String()
 }
 
+// Help print help message to stdout
 func (f *FlagSet) Help(verbose bool) {
 	fmt.Print(f.ToString(verbose))
 }
 
+// Reset reset values of each registered flags.
 func (f *FlagSet) Reset() {
 	var r resolver
 	r.reset(f)
 }
 
 var (
+	// Commandline is the default FlagSet instance.
 	Commandline = NewFlagSet(Flag{})
 )
 
+// ParseStruct is short way of Commandline.ParseStruct
 func ParseStruct(val interface{}, args ...string) error {
 	return Commandline.ParseStruct(val, args...)
 }
 
+// Help is the short way of Commandline.Help
 func Help(verbose bool) {
 	Commandline.Help(verbose)
 }
