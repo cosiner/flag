@@ -129,7 +129,7 @@ func newFlagSet(flag Flag) *FlagSet {
 // The children identifier will be split by ',', if children is empty, it update
 // itself.
 //
-// E.g., "tool, cover, -html: Flag{Usage:"display coverage in html}
+// E.g., "tool, cover, -html": Flag{Usage:"display coverage in html"}
 func (f *FlagSet) UpdateMeta(children string, meta Flag) error {
 	return defaultReguster.updateMeta(f, children, meta)
 }
