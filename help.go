@@ -157,12 +157,14 @@ func (w *writer) writeFlagValueInfo(flag *Flag) {
 			if isSlicePtr(flag.Ptr) {
 				fmt.Fprintf(w.buf, ", splitted by '%s'", flag.ValSep)
 			}
+			hasPrev = true
 		}
 		if flag.Default != nil {
 			if hasPrev {
 				w.write("; ")
 			}
 			fmt.Fprintf(w.buf, "default: %v", flag.Default)
+			hasPrev = true
 		}
 		if flag.Selects != nil {
 			if hasPrev {
