@@ -1,9 +1,6 @@
 package flag
 
-import (
-	"fmt"
-	"flag"
-)
+import "fmt"
 
 type Tar struct {
 	GZ          bool     `names:"-z, --gz" usage:"gzip format"`
