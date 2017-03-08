@@ -146,7 +146,7 @@ type GoCmd struct {
 	Build struct {
 		Enable  bool
 		Already bool   `names:"-a" important:"1" desc:"force rebuilding of packages that are already up-to-date."`
-		Race    bool   `important:"1" desc:"enable data race detection.\nSupported only on amd64."`
+		Race    bool   `important:"1" desc:"enable data race detection.\nSupported only on linux/amd64, freebsd/amd64, darwin/amd64 and windows/amd64."`
 		Output  string `names:"-o" arglist:"output" important:"1" desc:"only allowed when compiling a single package"`
 
 		LdFlags  string   `names:"-ldflags" arglist:"'flag list'" desc:"rguments to pass on each go tool link invocation."`
