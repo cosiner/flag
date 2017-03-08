@@ -19,10 +19,11 @@ type Flag struct {
 	Ptr       interface{} // value pointer
 
 	// For Flag
-	Default interface{} // default value
-	Selects interface{} // select value
-	Env     string      // environment name
-	ValSep  string      // environment value separator
+	Default  interface{} // default value
+	Selects  interface{} // select value
+	Env      string      // environment name
+	ValSep   string      // environment value separator
+	ShowType bool        // show flag type in help message
 
 	// For FlagSet
 	Version      string    // version, can be multiple lines
@@ -166,6 +167,11 @@ func (f *FlagSet) Flag(flag Flag) error {
 func (f *FlagSet) Subset(flag Flag) (*FlagSet, error) {
 	child, err := defaultReguster.registerSet(nil, f, flag)
 	return child, f.errorHandling.handle(err)
+}
+
+// FindSubset search flagset by the children identifier, children is set names split by ','.
+func (f *FlagSet) FindSubset(children string) (*FlagSet, error) {
+	return defaultReguster.findSubset(f, children)
 }
 
 // Metadata can be implemented by structure to update flag metadata.

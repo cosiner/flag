@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"fmt"
+
 	"github.com/cosiner/argv"
 )
 
@@ -366,4 +368,19 @@ func TestHelp(t *testing.T) {
 	set := NewFlagSet(Flag{})
 	set.StructFlags(&tar)
 	set.Help(false)
+}
+
+func TestSubset(t *testing.T) {
+	var g GoCmd
+
+	set := NewFlagSet(Flag{})
+	set.StructFlags(&g)
+	set.Help(false)
+
+	fmt.Println()
+	fmt.Println()
+	fmt.Println()
+
+	build, _ := set.FindSubset("build")
+	build.Help(false)
 }

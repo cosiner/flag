@@ -6,7 +6,10 @@ import (
 	"strings"
 )
 
-const minInfoLen = 12
+const (
+	minInfoLen = 12
+	maxInfoLen = 24
+)
 
 type writer struct {
 	buf           *bytes.Buffer
@@ -30,16 +33,21 @@ func (w *writer) maxFlagInfoLen(f *FlagSet) int {
 	if maxLen < minInfoLen {
 		maxLen = minInfoLen
 	}
+	if maxLen > maxInfoLen {
+		maxLen = maxInfoLen
+	}
 	return maxLen
 }
 
-func (w *writer) maxSubsetInfoLen(f *FlagSet) int {
+func (w *writer) maxSubsetInfoLen(f *FlagSet, needArglist bool) int {
 	var maxLen int
 	for i := range f.subsets {
 		l := len(f.subsets[i].self.Names)
-		args := w.arglist(&f.subsets[i])
-		if args != "" {
-			l += 1 + len(args)
+		if needArglist {
+			args := w.arglist(&f.subsets[i])
+			if args != "" {
+				l += 1 + len(args)
+			}
 		}
 		if maxLen < l {
 			maxLen = l
@@ -47,6 +55,9 @@ func (w *writer) maxSubsetInfoLen(f *FlagSet) int {
 	}
 	if maxLen < minInfoLen {
 		maxLen = minInfoLen
+	}
+	if maxLen > maxInfoLen {
+		maxLen = maxInfoLen
 	}
 	return maxLen
 }
@@ -131,23 +142,36 @@ func (w *writer) writeFlagInfo(currIndent string, flag *Flag, isTop bool, args s
 }
 
 func (w *writer) writeFlagValueInfo(flag *Flag) {
-	if flag.Usage != "" {
-		w.write(" ")
-	}
-	w.write("(", typeName(flag.Ptr))
-	if flag.Env != "" {
-		fmt.Fprintf(w.buf, "; env: %s", flag.Env)
-		if isSlicePtr(flag.Ptr) {
-			fmt.Fprintf(w.buf, ", splitted by '%s'", flag.ValSep)
+	if flag.Usage != "" && (flag.Env != "" || flag.Default != nil || flag.Selects != nil) {
+		w.write(" (")
+		var hasPrev bool
+		if flag.ShowType {
+			w.write(typeName(flag.Ptr))
+			hasPrev = true
 		}
+		if flag.Env != "" {
+			if hasPrev {
+				w.write("; ")
+			}
+			fmt.Fprintf(w.buf, "env: %s", flag.Env)
+			if isSlicePtr(flag.Ptr) {
+				fmt.Fprintf(w.buf, ", splitted by '%s'", flag.ValSep)
+			}
+		}
+		if flag.Default != nil {
+			if hasPrev {
+				w.write("; ")
+			}
+			fmt.Fprintf(w.buf, "default: %v", flag.Default)
+		}
+		if flag.Selects != nil {
+			if hasPrev {
+				w.write("; ")
+			}
+			fmt.Fprintf(w.buf, "selects: %v", flag.Selects)
+		}
+		w.write(")")
 	}
-	if flag.Default != nil {
-		fmt.Fprintf(w.buf, "; default: %v", flag.Default)
-	}
-	if flag.Selects != nil {
-		fmt.Fprintf(w.buf, "; selects: %v", flag.Selects)
-	}
-	w.write(")")
 }
 
 func (w *writer) writeSet(f *FlagSet) {
@@ -161,7 +185,11 @@ func (w *writer) writeSet(f *FlagSet) {
 		descLineCount    = len(f.self.descLines)
 	)
 
-	w.writeFlagInfo(currIndent, &f.self, w.isTop, w.arglist(f), w.maxInfoLen)
+	var arglist string
+	if w.isTop {
+		arglist = w.arglist(f)
+	}
+	w.writeFlagInfo(currIndent, &f.self, w.isTop, arglist, w.maxInfoLen)
 	w.writeln()
 
 	if outline && !w.isTop {
@@ -191,7 +219,7 @@ func (w *writer) writeSet(f *FlagSet) {
 			w.writeln(currIndent, "Flags:")
 		}
 		var (
-			maxFlagLen     = w.maxFlagInfoLen(f)
+			maxFlagInfoLen = w.maxFlagInfoLen(f)
 			nextFlagIndent = w.nextIndent(flagIndent)
 			important      = true
 			hasImportant   bool
@@ -209,7 +237,7 @@ func (w *writer) writeSet(f *FlagSet) {
 					hasImportant = false
 				}
 
-				w.writeFlagInfo(flagIndent, flag, false, flag.Arglist, maxFlagLen)
+				w.writeFlagInfo(flagIndent, flag, false, flag.Arglist, maxFlagInfoLen)
 				w.writeFlagValueInfo(flag)
 				w.writeln()
 				w.writeLines(nextFlagIndent, flag.descLines)
@@ -223,14 +251,14 @@ func (w *writer) writeSet(f *FlagSet) {
 	}
 
 	if subsetCount > 0 {
-		if (w.isTop && versionLineCount > 0) || descLineCount > 0 || flagCount > 0 {
+		if w.isTop || descLineCount > 0 || flagCount > 0 {
 			w.writeln()
 		}
 		if w.isTop {
 			w.writeln(currIndent, "Sets:")
 		}
 		var (
-			maxSubsetLen = w.maxSubsetInfoLen(f)
+			maxSubsetLen = w.maxSubsetInfoLen(f, !outline)
 			subsetIndent = flagIndent
 			important    = true
 			hasImportant bool

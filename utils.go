@@ -71,7 +71,7 @@ func parseDefault(val, valsep string, ptr interface{}) (interface{}, error) {
 	case reflect.String:
 		defval = val
 	case reflect.Bool:
-		b, e := parseBool(val)
+		b, e := parseBool(val, "false")
 		defval, err = b, e
 	default:
 		if invalid = !isKindNumber(refval.Kind()); !invalid {
@@ -479,7 +479,10 @@ func convertBool(val string) (string, error) {
 	return "", newErrorf(errInvalidValue, "illegal boolean value: %s", val)
 }
 
-func parseBool(val string) (bool, error) {
+func parseBool(val, defval string) (bool, error) {
+	if val == "" {
+		val = defval
+	}
 	val, err := convertBool(val)
 	if err != nil {
 		return false, err
@@ -502,7 +505,7 @@ func convertToFloats(vals []string) ([]float64, error) {
 func convertToBools(vals []string) ([]bool, error) {
 	bs := make([]bool, 0, len(vals))
 	for _, v := range vals {
-		f, err := parseBool(v)
+		f, err := parseBool(v, "")
 		if err != nil {
 			return nil, err
 		}

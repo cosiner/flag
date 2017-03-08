@@ -53,9 +53,6 @@ func (r register) cleanFlag(flag *Flag) {
 	if flag.ValSep == "" {
 		flag.ValSep = ","
 	}
-	if strings.Contains(flag.Arglist, " ") && !strings.Contains(flag.Arglist, "'") && !strings.Contains(flag.Arglist, `"`) {
-		flag.Arglist = "'" + flag.Arglist + "'"
-	}
 	r.updateFlagDesc(flag, flag.Desc)
 	r.updateFlagVersion(flag, flag.Version)
 }
@@ -128,12 +125,13 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}, exclud
 		tagVersion   = "version"
 		tagImportant = "important"
 
-		tagEnv     = "env"
-		tagValsep  = "valsep"
-		tagDefault = "default"
-		tagSelects = "selects"
-		tagExpand  = "expand"
-		tagArgs    = "args"
+		tagEnv      = "env"
+		tagValsep   = "valsep"
+		tagDefault  = "default"
+		tagSelects  = "selects"
+		tagExpand   = "expand"
+		tagArgs     = "args"
+		tagShowType = "showType"
 
 		fieldSubsetEnable = "Enable"
 		fieldArgs         = "Args"
@@ -154,16 +152,10 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}, exclud
 
 		fieldVal := refval.Field(i)
 
-		var (
-			args   = fieldType.Tag.Get(tagArgs)
-			isArgs bool
-			err    error
-		)
-		if args != "" {
-			isArgs, err = parseBool(args)
-			if err != nil {
-				return newErrorf(errInvalidValue, "non-bool tag args value: %s.%s %s", set.self.Names, fieldType.Name, args)
-			}
+		args := fieldType.Tag.Get(tagArgs)
+		isArgs, err := parseBool(args, "false")
+		if err != nil {
+			return newErrorf(errInvalidValue, "non-bool tag args value: %s.%s %s", set.self.Names, fieldType.Name, args)
 		}
 		if fieldType.Name == fieldArgs || isArgs {
 			if set.self.ArgsPtr != nil {
@@ -184,20 +176,18 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}, exclud
 			arglist   = fieldType.Tag.Get(tagArglist)
 			important = fieldType.Tag.Get(tagImportant)
 		)
-		if important == "" {
-			important = "false"
-		}
-		importantVal, err := parseBool(important)
+		importantVal, err := parseBool(important, "false")
 		if err != nil {
-			return err
+			return newErrorf(errInvalidValue, "invalid tag import value: %s.%s %s", set.self.Names, fieldType.Name, important)
 		}
 		if fieldVal.Kind() != reflect.Struct {
 			var (
-				ptr     = fieldVal.Addr().Interface()
-				env     = fieldType.Tag.Get(tagEnv)
-				def     = fieldType.Tag.Get(tagDefault)
-				valsep  = fieldType.Tag.Get(tagValsep)
-				selects = fieldType.Tag.Get(tagSelects)
+				ptr      = fieldVal.Addr().Interface()
+				env      = fieldType.Tag.Get(tagEnv)
+				def      = fieldType.Tag.Get(tagDefault)
+				valsep   = fieldType.Tag.Get(tagValsep)
+				selects  = fieldType.Tag.Get(tagSelects)
+				showType = fieldType.Tag.Get(tagShowType)
 			)
 			if names == "" {
 				names = "-" + unexportedName(fieldType.Name)
@@ -216,6 +206,10 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}, exclud
 			if err != nil {
 				return err
 			}
+			showTypeVal, err := parseBool(showType, "false")
+			if err != nil {
+				return newErrorf(errInvalidValue, "invalid tag showType value: %s.%s %s", set.self.Names, fieldType.Name, showType)
+			}
 			err = r.registerFlag(parent, set, Flag{
 				Names:     names,
 				Arglist:   arglist,
@@ -223,6 +217,7 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}, exclud
 				Desc:      desc,
 				Version:   version,
 				Important: importantVal,
+				ShowType:  showTypeVal,
 
 				Ptr:     ptr,
 				Env:     env,
@@ -245,10 +240,7 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}, exclud
 			if names == "" {
 				names = unexportedName(fieldType.Name)
 			}
-			if expand == "" {
-				expand = "false"
-			}
-			expandVal, err := parseBool(expand)
+			expandVal, err := parseBool(expand, "false")
 			if err != nil {
 				return newErrorf(errInvalidValue, "parse expand value %s as bool failed", expand)
 			}
@@ -381,7 +373,7 @@ func (r register) updateFlagVersion(flag *Flag, version string) {
 	flag.versionLines = r.splitLines(flag.Version)
 }
 
-func (r register) searchChildrenFlag(set *FlagSet, children string) (*Flag, bool, error) {
+func (r register) searchChildrenFlag(set *FlagSet, children string) (*Flag, *FlagSet, error) {
 	var (
 		currSet  = set
 		currFlag *Flag
@@ -396,31 +388,29 @@ func (r register) searchChildrenFlag(set *FlagSet, children string) (*Flag, bool
 			continue
 		}
 		if i != last {
-			return nil, false, newErrorf(errFlagNotFound, "subset %s is not found", sec)
+			return nil, nil, newErrorf(errFlagNotFound, "subset %s is not found", sec)
 		}
 		index, has = currSet.flagIndexes[sec]
 		if !has {
-			return nil, false, newErrorf(errFlagNotFound, "subset or flag %s is not found", sec)
+			return nil, nil, newErrorf(errFlagNotFound, "subset or flag %s is not found", sec)
 		}
 		currFlag = &currSet.flags[index]
 	}
-	var isSubset bool
 	if currFlag == nil {
-		isSubset = true
 		currFlag = &currSet.self
 	}
-	return currFlag, isSubset, nil
+	return currFlag, currSet, nil
 }
 
 func (r register) updateMeta(set *FlagSet, children string, meta Flag) error {
-	flag, isSubset, err := r.searchChildrenFlag(set, children)
+	flag, subset, err := r.searchChildrenFlag(set, children)
 	if err != nil {
 		return err
 	}
 	if meta.Desc != "" {
 		flag.Desc = meta.Desc
 	}
-	if isSubset && meta.Version != "" {
+	if subset != nil && meta.Version != "" {
 		flag.Version = meta.Version
 	}
 	if meta.Arglist != "" {
@@ -431,4 +421,9 @@ func (r register) updateMeta(set *FlagSet, children string, meta Flag) error {
 	}
 	r.cleanFlag(flag)
 	return nil
+}
+
+func (r register) findSubset(set *FlagSet, children string) (*FlagSet, error) {
+	_, subset, err := r.searchChildrenFlag(set, children)
+	return subset, err
 }

@@ -5,51 +5,31 @@ Flag is a simple but powerful commandline flag parsing library for [Go](https://
 # Documentation
 Documentation can be found at [Godoc](https://godoc.org/github.com/cosiner/flag)
 
-
 # Features
-* Slice
+* Support types: bool, string, all number types(except complex), slice of bool, string, number.
+* Embed structure as subcommand.
+* Multiple flag names, e.g. '-z, -gz, -gzip, --gz, --gzip'
+* '-' to ensure next argument must be a flag, e.g. 
+* '--' to ensure next argument must be a value, e.g. 'rm -- -a.go' to delete file '-a.go'
+* Support '=', e.g. '-a=b', '-a=true'
+* Support single bool flag, e.g. '-rm' is equal to '-rm=false'
+* Support multiple single flags: e.g. '-zcf a.tgz' is equal to '-z -c -f a.tgz'
+* Support '-I/usr/include' like format, the character next to '-' must be a alphabet, and the next next must not be.
+* Support catch non-flag values, e.g. 'tar -zcf a.tgz a.go b.go' will catch the values ['a.go', 'b.go']
 * Default value
-* Selectable values
-* Environment variable parsing
-* Infinite sub command levels
-* Structure parsing
+* Select values
+* Environment variable
+* Duplicate flag names detect
 
-# Supported types
-* bool
-* string
-* integer, unsigned integer and float (int8, int16, int32, int64, int, uint..., float32, float64)
-* slice of above types
-* embed structure as sub-flagset.
-
-# Argument splitting rules
-* `-` identify that the next argument must be a flag. It's a value if it's the last argument. 
-   E.g., `['./cmd', '-', '-output', 'a.out']`.
-* `--` identify that the next argument must be a value. It's a value if it's the last argument. 
-  E.g., `['./cmd', '-files', '--', '-a=b', '--', '-b.md']`.
-* Flags contains '='(except as the begin or end) will be separated into a flag and a value. 
-  E.g., `['./cmd', '-a=b']`.
-* Flags begin with '--' must be a flag. 
-  E.g., `['./cmd', '--input', 'file']`.
-* Flags begin with '-' must be a flag, also it can be split to multiple flags.
-  - If each character is flag, it will be split completely. 
-    E.g., `['tar', '-zcf', 'a.tgz', '-input', 'a']` 
-    will be split as `['tar', '-z', '-c', '-f', 'a.tgz', '-input', 'a']`.   
-  - If first character is a flag, it will be split into two part.
-    E.g., `['-I/usr/include']` will be split as `['-I', '/usr/include']`.
-  - Otherwise, it was recognized as a whole flag. 
-    E.g., `['./cmd', '-file', 'a.out']`.
-* Other words will be recognized as a flag set name if possible, otherwise it's a value argument.
-    E.g., `['./cmd', 'build', '-o', 'cmd']`.
-    
 # Parsing
 * Flag/FlagSet
-  * Names(tag: 'names'): split by ',', fully custom: short, long, with or without '-'.
+  * Names(tag: 'names'): split by ',', fully custom: short, long, with or without '-'/'--'.
   * Arglist(tag: 'arglist'): show commandline of flag or flag set, 
     E.g., `-input INPUT -output OUTPUT... -t 'tag list'`.
   * Usage(tag: 'usage'): the short help message for this flag or flag set, 
     E.g., `build       compile packages and dependencies`.
-  * Desc(tag: 'desc'): long description for this flag or flag set,  
-    will be split to multiple lines and format with same indents.
+  * Desc(tag: 'desc'): long description for this flag or flag set,  it will be split to multiple lines 
+    and format with same indents.
   * Ptr(field pointer for Flag, field 'Enable bool' for FlagSet): result pointer
   
 * Flag (structure field)
@@ -57,19 +37,21 @@ Documentation can be found at [Godoc](https://godoc.org/github.com/cosiner/flag)
   * Selects(tag: 'selects'): selectable values, must be slice.
   * Env(tag: 'env'): environment variable, only used when flag not appeared in arguments.
   * ValSep(tag: 'valsep'): slice value separator for environment variable's value,
+  * ShowType(tag: 'showType'): show flag type in help message
   
 * FlagSet (embed structure)
-  * Expand(tag: expand): always expand subset info in help message.
-  * Version(tag: version): app version, will be split to multiple lines and format with same indents.
+  * Expand(tag: 'expand'): always expand subset info in help message.
+  * Version(tag: 'version'): app version, will be split to multiple lines and format with same indents.
   * ArgsPtr(field: 'Args'): pointer to accept all the last non-flag values, 
     nil if don't need and error will be reported automatically.
   
 * FlagMeta
-  Structure can implement the Metadata interface to update flag metadata instead write in structure tag, it's designed
-  for long messages.
+  Structure can implement the Metadata interface to update flag metadata instead write in structure tag, 
+  it's designed for long messages.
    
   
-# Code
+# Example
+## Flags
 ```Go
 package flag
 
@@ -97,7 +79,7 @@ func (t *Tar) Metadata() map[string]Flag {
 		desc = `
 		tar creates and manipulates streaming archive files.  This implementation can extract
 		from tar, pax, cpio, zip, jar, ar, and ISO 9660 cdrom images and can create tar, pax,
-        cpio, ar, and shar archives.
+		cpio, ar, and shar archives.
 		`
 	)
 	return map[string]Flag{
@@ -115,7 +97,7 @@ func (t *Tar) Metadata() map[string]Flag {
 func ExampleFlagSet_ParseStruct() {
 	var tar Tar
 
-	ParseStruct(&tar, "tar", "-zcf", "a.tgz", "a.go", "b.go")
+	NewFlagSet(Flag{}).ParseStruct(&tar, "tar", "-zcf", "a.tgz", "a.go", "b.go")
 	fmt.Println(tar.GZ)
 	fmt.Println(tar.Create)
 	fmt.Println(tar.File)
@@ -144,7 +126,7 @@ Version:
 Description:
       tar creates and manipulates streaming archive files.  This implementation can extract
       from tar, pax, cpio, zip, jar, ar, and ISO 9660 cdrom images and can create tar, pax,
-            cpio, ar, and shar archives.
+      cpio, ar, and shar archives.
 
 Flags:
       -z, --gz     gzip format (bool)
@@ -157,5 +139,109 @@ Flags:
       -C           extract directory (string)
 ```
 
+## FlagSet
+```Go
+
+type GoCmd struct {
+	Build struct {
+		Enable  bool
+		Already bool   `names:"-a" important:"1" desc:"force rebuilding of packages that are already up-to-date."`
+		Race    bool   `important:"1" desc:"enable data race detection.\nSupported only on amd64."`
+		Output  string `names:"-o" arglist:"output" important:"1" desc:"only allowed when compiling a single package"`
+
+		LdFlags  string   `names:"-ldflags" arglist:"'flag list'" desc:"rguments to pass on each go tool link invocation."`
+		Packages []string `args:"true"`
+	} `usage:"compile packages and dependencies"`
+	Clean struct {
+		Enable bool
+	} `usage:"remove object files"`
+	Doc struct {
+		Enable bool
+	} `usage:"show documentation for package or symbol"`
+	Env struct {
+		Enable bool
+	} `usage:"print Go environment information"`
+	Bug struct {
+		Enable bool
+	} `usage:"start a bug report"`
+	Fix struct {
+		Enable bool
+	} `usage:"run go tool fix on packages"`
+	Fmt struct {
+		Enable bool
+	} `usage:"run gofmt on package sources"`
+}
+
+func (*GoCmd) Metadata() map[string]Flag {
+	return map[string]Flag{
+		"": {
+			Usage:   "Go is a tool for managing Go source code.",
+			Arglist: "command [argument]",
+		},
+		"build": {
+			Arglist: "[-o output] [-i] [build flags] [packages]",
+			Desc: `
+		Build compiles the packages named by the import paths,
+		along with their dependencies, but it does not install the results.
+		...
+		The build flags are shared by the build, clean, get, install, list, run,
+		and test commands:
+			`,
+		},
+	}
+}
+
+func TestSubset(t *testing.T) {
+	var g GoCmd
+
+	set := NewFlagSet(Flag{})
+	set.StructFlags(&g)
+	set.Help(false)
+	fmt.Println()
+	build, _ := set.FindSubset("build")
+	build.Help(false)
+}
+```
+##Help Message
+```
+Go is a tool for managing Go source code.
+
+Usage:
+      flag.test command [argument]
+
+Sets:
+      build        compile packages and dependencies
+      clean        remove object files
+      doc          show documentation for package or symbol
+      env          print Go environment information
+      bug          start a bug report
+      fix          run go tool fix on packages
+      fmt          run gofmt on package sources
+```
+```
+compile packages and dependencies
+
+Usage:
+      build [-o output] [-i] [build flags] [packages]
+
+Description:
+      Build compiles the packages named by the import paths,
+      along with their dependencies, but it does not install the results.
+      ...
+      The build flags are shared by the build, clean, get, install, list, run,
+      and test commands:
+
+Flags:
+      -a                  
+            force rebuilding of packages that are already up-to-date.
+      -race               
+            enable data race detection.
+            Supported only on linux/amd64, freebsd/amd64, darwin/amd64 and windows/amd64.
+      -o output           
+            only allowed when compiling a single package
+
+      -ldflags 'flag list'
+            rguments to pass on each go tool link invocation.
+```
 # LICENSE
 MIT.
