@@ -176,6 +176,10 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}, exclud
 			arglist   = fieldType.Tag.Get(tagArglist)
 			important = fieldType.Tag.Get(tagImportant)
 		)
+		if names == "-" {
+			continue
+		}
+
 		importantVal, err := parseBool(important, "false")
 		if err != nil {
 			return newErrorf(errInvalidValue, "invalid tag import value: %s.%s %s", set.self.Names, fieldType.Name, important)
