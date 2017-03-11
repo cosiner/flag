@@ -100,9 +100,28 @@ func (r register) registerFlag(parent, set *FlagSet, flag Flag) error {
 	return nil
 }
 
+func (r register) checkSubsetValid(flag *Flag) error {
+	if flag.Names == "" {
+		return newErrorf(errInvalidNames, "subset names should not be empty")
+	}
+	if flag.Ptr == nil {
+		return newErrorf(errInvalidType, "subset ptr should be pointer to bool rather than nil: %s", flag.Names)
+	}
+	if _, ok := flag.Ptr.(*bool); !ok {
+		return newErrorf(errInvalidType, "subset ptr should be pointer to bool: %s", flag.Names)
+	}
+	return nil
+}
+
 func (r register) registerSet(parent, set *FlagSet, flag Flag) (*FlagSet, error) {
 	var ns []string
+
 	ns, flag.Names = r.cleanFlagNames(flag.Names)
+	err := r.checkSubsetValid(&flag)
+	if err != nil {
+		return nil, err
+	}
+
 	if duplicates := r.findDuplicates(parent, set, ns); len(duplicates) > 0 {
 		return nil, newErrorf(errDuplicateFlagRegister, "duplicate subset name: %v", duplicates)
 	}

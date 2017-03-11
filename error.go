@@ -13,6 +13,7 @@ type (
 const (
 	errNonPointer errorType = iota + 1
 	errFlagNotFound
+	errInvalidNames
 	errInvalidType
 	errInvalidValue
 	errDuplicateFlagRegister
@@ -29,6 +30,8 @@ func (t errorType) String() string {
 		return "NonPointerStructure "
 	case errFlagNotFound:
 		return "FlagNotFound"
+	case errInvalidNames:
+		return "InvalidNames"
 	case errInvalidType:
 		return "InvalidType"
 	case errInvalidValue:
