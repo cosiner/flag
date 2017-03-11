@@ -104,12 +104,6 @@ func (r register) checkSubsetValid(flag *Flag) error {
 	if flag.Names == "" {
 		return newErrorf(errInvalidNames, "subset names should not be empty")
 	}
-	if flag.Ptr == nil {
-		return newErrorf(errInvalidType, "subset ptr should be pointer to bool rather than nil: %s", flag.Names)
-	}
-	if _, ok := flag.Ptr.(*bool); !ok {
-		return newErrorf(errInvalidType, "subset ptr should be pointer to bool: %s", flag.Names)
-	}
 	return nil
 }
 
@@ -135,7 +129,7 @@ func (r register) registerSet(parent, set *FlagSet, flag Flag) (*FlagSet, error)
 	return &set.subsets[len(set.subsets)-1], nil
 }
 
-func (r register) registerStructure(parent, set *FlagSet, st interface{}, excludeField string) error {
+func (r register) registerStructure(parent, set *FlagSet, st interface{}) error {
 	const (
 		tagNames     = "names"
 		tagArglist   = "arglist"
@@ -165,7 +159,7 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}, exclud
 	numfield := refval.NumField()
 	for i := 0; i < numfield; i++ {
 		fieldType := reftyp.Field(i)
-		if fieldType.Name == excludeField || !ast.IsExported(fieldType.Name) {
+		if !ast.IsExported(fieldType.Name) {
 			continue
 		}
 
@@ -187,6 +181,17 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}, exclud
 			continue
 		}
 
+		ptr := fieldVal.Addr().Interface()
+		if fieldType.Name == fieldSubsetEnable {
+			if fieldType.Type.Kind() != reflect.Bool {
+				return newErrorf(errInvalidType, "illegal type of field '%s', expect bool", fieldSubsetEnable)
+			}
+			if set.self.Ptr == nil {
+				set.self.Ptr = ptr
+			}
+			continue
+		}
+
 		var (
 			names     = fieldType.Tag.Get(tagNames)
 			usage     = fieldType.Tag.Get(tagUsage)
@@ -198,6 +203,10 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}, exclud
 		if names == "-" {
 			continue
 		}
+		_, ok := ptr.(NoFlag)
+		if ok {
+			continue
+		}
 
 		importantVal, err := parseBool(important, "false")
 		if err != nil {
@@ -205,7 +214,6 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}, exclud
 		}
 		if fieldVal.Kind() != reflect.Struct {
 			var (
-				ptr      = fieldVal.Addr().Interface()
 				env      = fieldType.Tag.Get(tagEnv)
 				def      = fieldType.Tag.Get(tagDefault)
 				valsep   = fieldType.Tag.Get(tagValsep)
@@ -252,14 +260,7 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}, exclud
 				return err
 			}
 		} else {
-			enableFieldVal := fieldVal.FieldByName(fieldSubsetEnable)
-			if enableFieldVal.Kind() != reflect.Bool {
-				return newErrorf(errInvalidType, "illegal child field type: %s", fieldSubsetEnable)
-			}
-			var (
-				expand = fieldType.Tag.Get(tagExpand)
-				ptr    = enableFieldVal.Addr().Interface().(*bool)
-			)
+			expand := fieldType.Tag.Get(tagExpand)
 			if names == "" {
 				names = unexportedName(fieldType.Name)
 			}
@@ -275,13 +276,11 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}, exclud
 				Version:   version,
 				Important: importantVal,
 				Expand:    expandVal,
-
-				Ptr: ptr,
 			})
 			if err != nil {
 				return err
 			}
-			err = r.registerStructure(set, child, fieldVal.Addr().Interface(), fieldSubsetEnable)
+			err = r.registerStructure(set, child, fieldVal.Addr().Interface())
 			if err != nil {
 				return err
 			}

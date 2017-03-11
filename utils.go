@@ -361,7 +361,7 @@ func applyValToPtr(names string, ptr interface{}, val string, selects interface{
 	case *[]bool:
 		*v, err = append(*v, bl), berr
 	default:
-		err = newErrorf(errInvalidType, "unsupported flag type:%s %t", names, ptr)
+		err = newErrorf(errInvalidType, "unsupported flag pointer type: %s %v", names, ptr)
 	}
 	if err != nil {
 		if _, ok := err.(flagError); !ok {

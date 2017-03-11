@@ -4,7 +4,6 @@ import (
 	"os"
 	"reflect"
 	"testing"
-	"time"
 
 	"fmt"
 
@@ -278,10 +277,6 @@ func TestFlags(t *testing.T) {
 			Error: errNonPointer,
 		},
 		{
-			Dst:   new(struct{ A time.Time }),
-			Error: errInvalidType,
-		},
-		{
 			Dst:   new(errorFlags1),
 			Error: errInvalidSelects,
 		},
@@ -314,7 +309,7 @@ func TestFlags(t *testing.T) {
 		err := flags.StructFlags(typ.Dst)
 		gotErr, expectErr := gotErrorType(err), typ.Error
 		if gotErr.String() != expectErr.String() {
-			t.Errorf("%s: parse flags failed:, expect error: %s, got error %s", typ.Category, expectErr.String(), gotErr.String())
+			t.Errorf("%s: parse flags failed: %d, expect error: %s, got error %s", typ.Category, i, expectErr.String(), gotErr.String())
 			continue
 		}
 

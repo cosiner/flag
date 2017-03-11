@@ -32,26 +32,17 @@ type Flag struct {
 	ArgsPtr      *[]string // NArgs pointer
 }
 
-func (f *FlagSet) searchFlag(name string) *Flag {
-	index, has := f.flagIndexes[name]
-	if !has {
-		return nil
-	}
-	return &f.flags[index]
+// Metadata can be implemented by structure to update flag metadata.
+type Metadata interface {
+	// Metadata return the metadata map to be updated.
+	// The return value is a map of children and metadata.
+	Metadata() map[string]Flag
 }
 
-func (f *FlagSet) isFlag(name string) bool {
-	_, has := f.flagIndexes[name]
-	return has
-}
-
-func (f *FlagSet) isSubset(name string) bool {
-	_, has := f.subsetIndexes[name]
-	return has
-}
-
-func (f *FlagSet) isFlagOrSubset(name string) bool {
-	return f.isFlag(name) || f.isSubset(name)
+// NoFlag can be implemented by structure or field to prevent from parsing
+type NoFlag interface {
+	// NoFlag method identify the field should not be parsed
+	NoFlag()
 }
 
 // ErrorHandling is the error handling way when error occurred when register/scan/resolve.
@@ -105,6 +96,28 @@ type FlagSet struct {
 	errorHandling   ErrorHandling
 	noHelpFlag      bool
 	helpFlagDefined bool
+}
+
+func (f *FlagSet) searchFlag(name string) *Flag {
+	index, has := f.flagIndexes[name]
+	if !has {
+		return nil
+	}
+	return &f.flags[index]
+}
+
+func (f *FlagSet) isFlag(name string) bool {
+	_, has := f.flagIndexes[name]
+	return has
+}
+
+func (f *FlagSet) isSubset(name string) bool {
+	_, has := f.subsetIndexes[name]
+	return has
+}
+
+func (f *FlagSet) isFlagOrSubset(name string) bool {
+	return f.isFlag(name) || f.isSubset(name)
 }
 
 // NewFlagSet create a new flagset
@@ -174,16 +187,9 @@ func (f *FlagSet) FindSubset(children string) (*FlagSet, error) {
 	return defaultReguster.findSubset(f, children)
 }
 
-// Metadata can be implemented by structure to update flag metadata.
-type Metadata interface {
-	// Metadata return the metadata map to be updated.
-	// The return value is a map of children and metadata.
-	Metadata() map[string]Flag
-}
-
 // StructFlags parse the structure pointer and add exported fields to flagset.
 func (f *FlagSet) StructFlags(val interface{}) error {
-	return f.errorHandling.handle(defaultReguster.registerStructure(nil, f, val, ""))
+	return f.errorHandling.handle(defaultReguster.registerStructure(nil, f, val))
 }
 
 // Parse parse arguments, if empty, os.Args will be used.
