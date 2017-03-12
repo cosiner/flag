@@ -142,7 +142,7 @@ func (w *writer) writeFlagInfo(currIndent string, flag *Flag, isTop bool, args s
 }
 
 func (w *writer) writeFlagValueInfo(flag *Flag) {
-	if flag.Usage != "" && (flag.Env != "" || flag.Default != nil || flag.Selects != nil) {
+	if flag.Env != "" || flag.Default != nil || flag.Selects != nil {
 		w.write(" (")
 		var hasPrev bool
 		if flag.ShowType {
