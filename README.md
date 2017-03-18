@@ -16,7 +16,7 @@ Documentation can be found at [Godoc](https://godoc.org/github.com/cosiner/flag)
 * '-' to ensure next argument must be a flag, e.g. 
 * '--' to ensure next argument must be a value, e.g. 'rm -- -a.go' to delete file '-a.go'
 * Support '=', e.g. '-a=b', '-a=true'
-* Support single bool flag, e.g. '-rm' is equal to '-rm=false'
+* Support single bool flag, e.g. '-rm' is equal to '-rm=true'
 * Support multiple single flags: e.g. '-zcf a.tgz' is equal to '-z -c -f a.tgz'
 * Support '-I/usr/include' like format, the character next to '-' must be a alphabet, and the next next must not be.
 * Support catch non-flag values, e.g. 'tar -zcf a.tgz a.go b.go' will catch the values ['a.go', 'b.go']
