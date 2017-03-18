@@ -315,7 +315,7 @@ func (r register) registerBoolFlags(parent, set *FlagSet, names []string, usage 
 
 func (r register) registerHelpFlags(parent, set *FlagSet) error {
 	registered, err := r.registerBoolFlags(parent, set, []string{"-h", "--help"}, "show help")
-	if err == nil && registered {
+	if err == nil && registered && len(set.subsets) > 0 {
 		_, err = r.registerBoolFlags(parent, set, []string{"-v", "--verbose"}, "show verbose help")
 	}
 	return err
