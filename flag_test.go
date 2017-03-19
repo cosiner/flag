@@ -77,7 +77,7 @@ var tarCase = TestCases{
 			Errors: []errorType{
 				errFlagNotFound,
 				errFlagNotFound,
-				errStandaloneFLag,
+				errStandaloneFlag,
 				errInvalidValue,
 				errStandaloneValue,
 				errDuplicateFlagParsed,

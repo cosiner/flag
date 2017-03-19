@@ -17,7 +17,7 @@ const (
 	errInvalidType
 	errInvalidValue
 	errDuplicateFlagRegister
-	errStandaloneFLag
+	errStandaloneFlag
 	errStandaloneValue
 	errDuplicateFlagParsed
 	errInvalidSelects
@@ -38,8 +38,8 @@ func (t errorType) String() string {
 		return "InvalidValue"
 	case errDuplicateFlagRegister:
 		return "DuplicateFlagRegister"
-	case errStandaloneFLag:
-		return "StandaloneFLag"
+	case errStandaloneFlag:
+		return "StandaloneFlag"
 	case errStandaloneValue:
 		return "StandaloneValue"
 	case errDuplicateFlagParsed:

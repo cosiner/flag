@@ -92,7 +92,7 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 				applied[flag] = true
 				return r.applyVals(flag, "true")
 			}
-			return newErrorf(errStandaloneFLag, "standalone flag without values: %v.%s", context, flag.Names)
+			return newErrorf(errStandaloneFlag, "standalone flag without values: %v.%s", context, flag.Names)
 		}
 		hasFlag = func(args []argument) bool {
 			for i := range args {
