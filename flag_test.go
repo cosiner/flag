@@ -1,13 +1,11 @@
 package flag
 
 import (
+	"fmt"
+	"github.com/cosiner/argv"
 	"os"
 	"reflect"
 	"testing"
-
-	"fmt"
-
-	"github.com/cosiner/argv"
 )
 
 var tarCase = TestCases{
@@ -378,4 +376,36 @@ func TestSubset(t *testing.T) {
 
 	build, _ := set.FindSubset("build")
 	build.Help(false)
+}
+
+type MultiValue struct {
+	Flag []string `names:"-f"`
+	Rest []string `args:"true"`
+}
+
+func (t *MultiValue) Metadata() map[string]Flag {
+	return map[string]Flag{}
+}
+func TestMultiValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     []string
+		wantFlag []string
+		wantRest []string
+	}{
+		{"multiple REST", []string{"cmd", "-f", "X", "Y", "Z"}, []string{"X"}, []string{"Y", "Z"}},
+		{"multiple FLAG", []string{"cmd", "-f", "X", "-f", "Y", "Z", "A"}, []string{"X", "Y"}, []string{"Z", "A"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mv := MultiValue{}
+			NewFlagSet(Flag{}).ErrHandling(0).ParseStruct(&mv, tt.args...)
+			if !reflect.DeepEqual(mv.Flag, tt.wantFlag) {
+				t.Errorf("MultiValue() %s Flag = %v, want %v", tt.name, mv.Flag, tt.wantFlag)
+			}
+			if !reflect.DeepEqual(mv.Rest, tt.wantRest) {
+				t.Errorf("MultiValue() %s Rest = %v, want %v", tt.name, mv.Rest, tt.wantRest)
+			}
+		})
+	}
 }

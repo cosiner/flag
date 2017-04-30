@@ -154,6 +154,7 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 			if err != nil {
 				return err
 			}
+			flag = nil
 		default:
 			panic("unreachable")
 		}
