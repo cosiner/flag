@@ -6,6 +6,35 @@
 
 Flag is a simple but powerful commandline flag parsing library for [Go](https://golang.org).
 
+# Purpose of this fork
+
+This repository is a fork of [cosiner's](https://github.com/cosiner/flag),
+which ends greedy consumption of arguments to better comply with de-facto
+standard POSIX behavior.  In Cosiner's version, a multi-value flag consumes all
+arguments following the flag until it encounters another flag.  This means that
+it is impossible to define a flag set that has both multi-value flags _and_
+non-flag arguments without a hack such as requiring a `-nop` dummy argument, or
+some such.  This fork removes that behavior; to specify multiple values for a
+flag, specify the flag multiple times.  E.g.:
+
+cosiner:
+```
+	cmd -s A B C
+```
+means that `-s` gets all three arguments.  In this fork, `-s` gets `A`, and `B`
+and `C` go to the non-flag argument spot.  To get the same cosiner behavior,
+the user would call:
+```
+	cmd -s A -s B -s C
+```
+Cosiner did an awesome job on this flag library.  I've used a half-dozen
+different flag libraries for Go, and use the stdlib `flag` library wherever
+possible, pulling a dependency only when necessary.  Cosiner's is the best I've
+encountered so far.  This fork exists only to resolve the greedy consumption
+behavior.  I've kept all of the links and references to the upstream project as
+I intend to shut this down if cosiner merges this behavior change.
+
+
 # Documentation
 Documentation can be found at [Godoc](https://godoc.org/github.com/cosiner/flag)
 
