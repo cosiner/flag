@@ -6,11 +6,13 @@ const (
 	argumentFlagSplittable = iota + 1
 	argumentFlag
 	argumentValue
+	argumentStopConsumption
 	argumentReserve
 
-	dash       = "-"
-	doubleDash = "--"
-	equal      = "="
+	dash            = "-"
+	doubleDash      = "--"
+	stopConsumption = "-!"
+	equal           = "="
 )
 
 type argument struct {
@@ -147,7 +149,7 @@ func (s *scanner) appendSplittable(f *FlagSet, arg argument) {
 
 func (s *scanner) append(f *FlagSet, arg argument) {
 	switch arg.Type {
-	case argumentValue:
+	case argumentValue, argumentStopConsumption:
 		s.appendArg(arg, false)
 	case argumentFlag, argumentReserve:
 		s.tryAppendFlagOrSubset(f, arg, true)
@@ -187,6 +189,8 @@ func (s *scanner) scanArg(f *FlagSet, isFirst bool, curr, next string) (consumed
 			typ = argumentValue
 		}
 		s.append(f, argument{Type: typ, Value: curr})
+	case curr == stopConsumption:
+		s.append(f, argument{Type: argumentStopConsumption, Value: curr})
 	case s.canBeSplitBy(curr, equal):
 		secs := strings.SplitN(curr, equal, 2)
 		for i, sec := range secs {
