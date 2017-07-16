@@ -75,7 +75,7 @@ func (s *scanner) checkSplits(f *FlagSet, rs []rune) (allFlag, firstFlag bool) {
 func (s *scanner) stackTopFlagSet(f *FlagSet, stack []string) *FlagSet {
 	curr := f
 	for _, subset := range stack {
-		curr = &curr.subsets[f.subsetIndexes[subset]]
+		curr = &curr.subsets[curr.subsetIndexes[subset]]
 	}
 	return curr
 }
