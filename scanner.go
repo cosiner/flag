@@ -160,7 +160,7 @@ func (s *scanner) append(f *FlagSet, arg argument) {
 
 func (s *scanner) canBeSplitBy(arg, sep string) bool {
 	index := strings.Index(arg, sep)
-	return index > 0 && index < len(arg)-1
+	return index > 0 && index <= len(arg)-1
 }
 
 func (s *scanner) scanArg(f *FlagSet, isFirst bool, curr, next string) (consumed int) {
