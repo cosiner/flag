@@ -94,7 +94,7 @@ func (w *writer) write(elem ...string) {
 }
 
 func (w *writer) nextIndent(curr string) string {
-	const indent = "      "
+	const indent = "\t"
 	return curr + indent
 }
 
@@ -143,19 +143,19 @@ func (w *writer) writeFlagInfo(currIndent string, flag *Flag, isTop bool, args s
 
 func (w *writer) writeFlagValueInfo(flag *Flag) {
 	w.write(" (")
-	w.write(typeName(flag.Ptr))
+	w.write("type: ", typeName(flag.Ptr))
 	if flag.Env != "" || flag.Default != nil || flag.Selects != nil {
 		if flag.Env != "" {
-			_, _ = fmt.Fprintf(w.buf, "; env: %s", flag.Env)
+			w.write("; env: ", flag.Env)
 			if isSlicePtr(flag.Ptr) {
-				_, _ = fmt.Fprintf(w.buf, ", splitted by '%s'", flag.ValSep)
+				w.write(", splitted by ", fmt.Sprintf("'%s'", flag.ValSep))
 			}
 		}
 		if flag.Default != nil {
-			_, _ = fmt.Fprintf(w.buf, "; default: %v", flag.Default)
+			w.write("; default: ", fmt.Sprintf("%v", flag.Default))
 		}
 		if flag.Selects != nil {
-			_, _ = fmt.Fprintf(w.buf, "; selects: %v", flag.Selects)
+			w.write("; selects: ", fmt.Sprintf("%v", flag.Selects))
 		}
 	}
 	w.write(")")
