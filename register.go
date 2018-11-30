@@ -139,13 +139,12 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}) error 
 		tagVersion   = "version"
 		tagImportant = "important"
 
-		tagEnv      = "env"
-		tagValsep   = "valsep"
-		tagDefault  = "default"
-		tagSelects  = "selects"
-		tagExpand   = "expand"
-		tagArgs     = "args"
-		tagShowType = "showType"
+		tagEnv     = "env"
+		tagValsep  = "valsep"
+		tagDefault = "default"
+		tagSelects = "selects"
+		tagExpand  = "expand"
+		tagArgs    = "args"
 
 		fieldSubsetEnable = "Enable"
 		fieldArgs         = "Args"
@@ -215,11 +214,10 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}) error 
 		}
 		if fieldVal.Kind() != reflect.Struct {
 			var (
-				env      = fieldType.Tag.Get(tagEnv)
-				def      = fieldType.Tag.Get(tagDefault)
-				valsep   = fieldType.Tag.Get(tagValsep)
-				selects  = fieldType.Tag.Get(tagSelects)
-				showType = fieldType.Tag.Get(tagShowType)
+				env     = fieldType.Tag.Get(tagEnv)
+				def     = fieldType.Tag.Get(tagDefault)
+				valsep  = fieldType.Tag.Get(tagValsep)
+				selects = fieldType.Tag.Get(tagSelects)
 			)
 			if names == "" {
 				names = "-" + unexportedName(fieldType.Name)
@@ -238,10 +236,6 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}) error 
 			if err != nil {
 				return err
 			}
-			showTypeVal, err := parseBool(showType, "false")
-			if err != nil {
-				return newErrorf(errInvalidValue, "invalid tag showType value: %s.%s %s", set.self.Names, fieldType.Name, showType)
-			}
 			err = r.registerFlag(parent, set, Flag{
 				Names:     names,
 				Arglist:   arglist,
@@ -249,7 +243,6 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}) error 
 				Desc:      desc,
 				Version:   version,
 				Important: importantVal,
-				ShowType:  showTypeVal,
 
 				Ptr:     ptr,
 				Env:     env,

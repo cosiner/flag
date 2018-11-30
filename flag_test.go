@@ -1,11 +1,10 @@
 package flag
 
 import (
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
-
-	"fmt"
 
 	"github.com/cosiner/argv"
 )

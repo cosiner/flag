@@ -19,11 +19,10 @@ type Flag struct {
 	Ptr       interface{} // value pointer
 
 	// For Flag
-	Default  interface{} // default value
-	Selects  interface{} // select value
-	Env      string      // environment name
-	ValSep   string      // environment value separator
-	ShowType bool        // show flag type in help message
+	Default interface{} // default value
+	Selects interface{} // select value
+	Env     string      // environment name
+	ValSep  string      // environment value separator
 
 	// For FlagSet
 	Version      string    // version, can be multiple lines

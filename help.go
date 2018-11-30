@@ -142,38 +142,23 @@ func (w *writer) writeFlagInfo(currIndent string, flag *Flag, isTop bool, args s
 }
 
 func (w *writer) writeFlagValueInfo(flag *Flag) {
+	w.write(" (")
+	w.write(typeName(flag.Ptr))
 	if flag.Env != "" || flag.Default != nil || flag.Selects != nil {
-		w.write(" (")
-		var hasPrev bool
-		if flag.ShowType {
-			w.write(typeName(flag.Ptr))
-			hasPrev = true
-		}
 		if flag.Env != "" {
-			if hasPrev {
-				w.write("; ")
-			}
-			fmt.Fprintf(w.buf, "env: %s", flag.Env)
+			_, _ = fmt.Fprintf(w.buf, "; env: %s", flag.Env)
 			if isSlicePtr(flag.Ptr) {
-				fmt.Fprintf(w.buf, ", splitted by '%s'", flag.ValSep)
+				_, _ = fmt.Fprintf(w.buf, ", splitted by '%s'", flag.ValSep)
 			}
-			hasPrev = true
 		}
 		if flag.Default != nil {
-			if hasPrev {
-				w.write("; ")
-			}
-			fmt.Fprintf(w.buf, "default: %v", flag.Default)
-			hasPrev = true
+			_, _ = fmt.Fprintf(w.buf, "; default: %v", flag.Default)
 		}
 		if flag.Selects != nil {
-			if hasPrev {
-				w.write("; ")
-			}
-			fmt.Fprintf(w.buf, "selects: %v", flag.Selects)
+			_, _ = fmt.Fprintf(w.buf, "; selects: %v", flag.Selects)
 		}
-		w.write(")")
 	}
+	w.write(")")
 }
 
 func (w *writer) writeSet(f *FlagSet) {
