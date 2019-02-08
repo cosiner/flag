@@ -154,137 +154,150 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}) error 
 	if refval.Kind() != reflect.Ptr || refval.Elem().Kind() != reflect.Struct {
 		return newErrorf(errNonPointer, "not pointer of structure")
 	}
-	refval = refval.Elem()
-	reftyp := refval.Type()
-	numfield := refval.NumField()
-	for i := 0; i < numfield; i++ {
-		fieldType := reftyp.Field(i)
-		if !ast.IsExported(fieldType.Name) {
-			continue
-		}
 
-		fieldVal := refval.Field(i)
+	var parseQueue = []reflect.Value{refval.Elem()}
+	for {
+		l := len(parseQueue)
+		if l == 0 {
+			break
+		}
+		refval := parseQueue[0]
+		copy(parseQueue, parseQueue[1:])
+		parseQueue = parseQueue[:l-1]
 
-		args := fieldType.Tag.Get(tagArgs)
-		isArgs, err := parseBool(args, "false")
-		if err != nil {
-			return newErrorf(errInvalidValue, "non-bool tag args value: %s.%s %s", set.self.Names, fieldType.Name, args)
-		}
-		if fieldType.Name == fieldArgs || isArgs {
-			if set.self.ArgsPtr != nil {
-				return newErrorf(errDuplicateFlagRegister, "duplicate args field: %s", set.self.Names)
-			}
-			if _, ok := fieldVal.Interface().([]string); !ok {
-				return newErrorf(errInvalidType, "invalid %s:Args field type, expect []string", set.self.Names)
-			}
-			set.self.ArgsPtr = fieldVal.Addr().Interface().(*[]string)
-			continue
-		}
-
-		ptr := fieldVal.Addr().Interface()
-		if fieldType.Name == fieldSubsetEnable {
-			if fieldType.Type.Kind() != reflect.Bool {
-				return newErrorf(errInvalidType, "illegal type of field '%s', expect bool", fieldSubsetEnable)
-			}
-			if set.self.Ptr == nil {
-				set.self.Ptr = ptr
-			}
-			continue
-		}
-
-		var (
-			names     = fieldType.Tag.Get(tagNames)
-			usage     = fieldType.Tag.Get(tagUsage)
-			desc      = fieldType.Tag.Get(tagDesc)
-			version   = fieldType.Tag.Get(tagVersion)
-			arglist   = fieldType.Tag.Get(tagArglist)
-			important = fieldType.Tag.Get(tagImportant)
-		)
-		if names == "-" {
-			continue
-		}
-		_, ok := ptr.(NoFlag)
-		if ok {
-			continue
-		}
-
-		importantVal, err := parseBool(important, "false")
-		if err != nil {
-			return newErrorf(errInvalidValue, "invalid tag import value: %s.%s %s", set.self.Names, fieldType.Name, important)
-		}
-		if fieldVal.Kind() != reflect.Struct {
-			var (
-				env     = fieldType.Tag.Get(tagEnv)
-				def     = fieldType.Tag.Get(tagDefault)
-				valsep  = fieldType.Tag.Get(tagValsep)
-				selects = fieldType.Tag.Get(tagSelects)
-			)
-			if names == "" {
-				names = "-" + unexportedName(fieldType.Name)
-			}
-			if valsep == "" {
-				valsep = ","
-			}
-			if typeName(ptr) == "" {
+		reftyp := refval.Type()
+		numfield := refval.NumField()
+		for i := 0; i < numfield; i++ {
+			fieldType := reftyp.Field(i)
+			if !ast.IsExported(fieldType.Name) {
 				continue
 			}
-			defVal, err := parseDefault(def, valsep, ptr)
-			if err != nil {
-				return err
-			}
-			selectsVal, err := parseSelectsString(selects, valsep, ptr)
-			if err != nil {
-				return err
-			}
-			err = r.registerFlag(parent, set, Flag{
-				Names:     names,
-				Arglist:   arglist,
-				Usage:     usage,
-				Desc:      desc,
-				Version:   version,
-				Important: importantVal,
 
-				Ptr:     ptr,
-				Env:     env,
-				ValSep:  valsep,
-				Default: defVal,
-				Selects: selectsVal,
-			})
+			fieldVal := refval.Field(i)
+
+			args := fieldType.Tag.Get(tagArgs)
+			isArgs, err := parseBool(args, "false")
 			if err != nil {
-				return err
+				return newErrorf(errInvalidValue, "non-bool tag args value: %s.%s %s", set.self.Names, fieldType.Name, args)
 			}
-		} else {
-			expand := fieldType.Tag.Get(tagExpand)
-			if names == "" {
-				names = unexportedName(fieldType.Name)
+			if fieldType.Name == fieldArgs || isArgs {
+				if set.self.ArgsPtr != nil {
+					return newErrorf(errDuplicateFlagRegister, "duplicate args field: %s", set.self.Names)
+				}
+				if _, ok := fieldVal.Interface().([]string); !ok {
+					return newErrorf(errInvalidType, "invalid %s:Args field type, expect []string", set.self.Names)
+				}
+				set.self.ArgsPtr = fieldVal.Addr().Interface().(*[]string)
+				continue
 			}
-			expandVal, err := parseBool(expand, "false")
+
+			ptr := fieldVal.Addr().Interface()
+			if fieldType.Name == fieldSubsetEnable {
+				if fieldType.Type.Kind() != reflect.Bool {
+					return newErrorf(errInvalidType, "illegal type of field '%s', expect bool", fieldSubsetEnable)
+				}
+				if set.self.Ptr == nil {
+					set.self.Ptr = ptr
+				}
+				continue
+			}
+
+			var (
+				names     = fieldType.Tag.Get(tagNames)
+				usage     = fieldType.Tag.Get(tagUsage)
+				desc      = fieldType.Tag.Get(tagDesc)
+				version   = fieldType.Tag.Get(tagVersion)
+				arglist   = fieldType.Tag.Get(tagArglist)
+				important = fieldType.Tag.Get(tagImportant)
+			)
+			if names == "-" {
+				continue
+			}
+			_, ok := ptr.(NoFlag)
+			if ok {
+				continue
+			}
+
+			importantVal, err := parseBool(important, "false")
 			if err != nil {
-				return newErrorf(errInvalidValue, "parse expand value %s as bool failed", expand)
+				return newErrorf(errInvalidValue, "invalid tag import value: %s.%s %s", set.self.Names, fieldType.Name, important)
 			}
-			child, err := r.registerSet(parent, set, Flag{
-				Names:     names,
-				Arglist:   arglist,
-				Usage:     usage,
-				Desc:      desc,
-				Version:   version,
-				Important: importantVal,
-				Expand:    expandVal,
-			})
-			if err != nil {
-				return err
-			}
-			err = r.registerStructure(set, child, fieldVal.Addr().Interface())
-			if err != nil {
-				return err
+			if fieldVal.Kind() != reflect.Struct {
+				var (
+					env     = fieldType.Tag.Get(tagEnv)
+					def     = fieldType.Tag.Get(tagDefault)
+					valsep  = fieldType.Tag.Get(tagValsep)
+					selects = fieldType.Tag.Get(tagSelects)
+				)
+				if names == "" {
+					names = "-" + unexportedName(fieldType.Name)
+				}
+				if valsep == "" {
+					valsep = ","
+				}
+				if typeName(ptr) == "" {
+					continue
+				}
+				defVal, err := parseDefault(def, valsep, ptr)
+				if err != nil {
+					return err
+				}
+				selectsVal, err := parseSelectsString(selects, valsep, ptr)
+				if err != nil {
+					return err
+				}
+				err = r.registerFlag(parent, set, Flag{
+					Names:     names,
+					Arglist:   arglist,
+					Usage:     usage,
+					Desc:      desc,
+					Version:   version,
+					Important: importantVal,
+
+					Ptr:     ptr,
+					Env:     env,
+					ValSep:  valsep,
+					Default: defVal,
+					Selects: selectsVal,
+				})
+				if err != nil {
+					return err
+				}
+			} else if fieldType.Anonymous {
+				parseQueue = append(parseQueue, fieldVal)
+			} else {
+				expand := fieldType.Tag.Get(tagExpand)
+				if names == "" {
+					names = unexportedName(fieldType.Name)
+				}
+				expandVal, err := parseBool(expand, "false")
+				if err != nil {
+					return newErrorf(errInvalidValue, "parse expand value %s as bool failed", expand)
+				}
+				child, err := r.registerSet(parent, set, Flag{
+					Names:     names,
+					Arglist:   arglist,
+					Usage:     usage,
+					Desc:      desc,
+					Version:   version,
+					Important: importantVal,
+					Expand:    expandVal,
+				})
+				if err != nil {
+					return err
+				}
+				err = r.registerStructure(set, child, fieldVal.Addr().Interface())
+				if err != nil {
+					return err
+				}
 			}
 		}
-	}
-	if md, ok := st.(Metadata); ok {
-		for children, meta := range md.Metadata() {
-			err := r.updateMeta(set, children, meta)
-			if err != nil {
-				return err
+		if md, ok := st.(Metadata); ok {
+			for children, meta := range md.Metadata() {
+				err := r.updateMeta(set, children, meta)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
