@@ -51,7 +51,10 @@ func isBoolPtr(ptr interface{}) bool {
 }
 
 func isSlicePtr(ptr interface{}) bool {
-	refval := reflect.ValueOf(ptr)
+	return isRefvalSlicePtr(reflect.ValueOf(ptr))
+}
+
+func isRefvalSlicePtr(refval reflect.Value) bool {
 	return refval.Kind() == reflect.Ptr && refval.Elem().Kind() == reflect.Slice
 }
 
@@ -102,7 +105,7 @@ func parseDefault(val, valsep string, ptr interface{}) (interface{}, error) {
 	return defval, nil
 }
 
-func convertNumberSlice(val interface{}) []float64 {
+func convertNumbersToFloats(val interface{}) []float64 {
 	var fs []float64
 	switch vals := val.(type) {
 	case []int:
@@ -187,26 +190,6 @@ func parseSelectsString(val, valsep string, ptr interface{}) (interface{}, error
 	return nil, newErrorf(errInvalidType, "doesn't support select: %s", k.String())
 }
 
-func parseSelectsValue(ptr interface{}, val interface{}) (interface{}, error) {
-	if val == nil {
-		return nil, nil
-	}
-
-	refval := reflect.ValueOf(ptr).Elem()
-	k := sliceElemKind(refval)
-	if isKindNumber(k) {
-		fs := convertNumberSlice(val)
-		if len(fs) != 0 {
-			return fs, nil
-		}
-	} else if k == reflect.String {
-		if vals, ok := val.([]string); ok && len(vals) != 0 {
-			return vals, nil
-		}
-	}
-	return nil, newErrorf(errInvalidSelects, "invalid selects")
-}
-
 func typeName(ptr interface{}) string {
 	switch ptr.(type) {
 	case *int:
@@ -266,7 +249,7 @@ func typeName(ptr interface{}) string {
 	case *[]bool:
 		return "[]bool"
 	}
-	return ""
+	return "unknown"
 }
 
 func checkSelects(k reflect.Kind, selects interface{}, val string, flt float64) bool {
@@ -295,7 +278,7 @@ func checkSelects(k reflect.Kind, selects interface{}, val string, flt float64) 
 func applyValToPtr(names string, ptr interface{}, val string, selects interface{}) error {
 	var err error
 	if isBoolPtr(ptr) {
-		val, err = convertBool(val)
+		val, err = parsePossibleBoolValue(val)
 		if err != nil {
 			return newErrorf(errInvalidValue, "%s: %s", names, err.Error())
 		}
@@ -469,7 +452,7 @@ func unexportedName(name string) string {
 	return name
 }
 
-func convertBool(val string) (string, error) {
+func parsePossibleBoolValue(val string) (string, error) {
 	switch strings.ToLower(val) {
 	case "true", "t", "yes", "y", "1":
 		return "true", nil
@@ -483,7 +466,7 @@ func parseBool(val, defval string) (bool, error) {
 	if val == "" {
 		val = defval
 	}
-	val, err := convertBool(val)
+	val, err := parsePossibleBoolValue(val)
 	if err != nil {
 		return false, err
 	}

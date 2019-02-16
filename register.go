@@ -10,7 +10,7 @@ import (
 type register struct {
 }
 
-var defaultReguster register
+var defaultRegister register
 
 func (r register) addIndexes(indexes map[string]int, keys []string, index int) {
 	for _, key := range keys {
@@ -57,6 +57,45 @@ func (r register) cleanFlag(flag *Flag) {
 	r.updateFlagVersion(flag, flag.Version)
 }
 
+func (r register) updateFlagDefault(flag *Flag, def interface{}) error {
+	refPtr := reflect.ValueOf(flag.Ptr)
+	var compatible bool
+
+	refdef := reflect.ValueOf(def)
+	if isRefvalSlicePtr(refPtr) {
+		compatible = refdef.Kind() == reflect.Slice
+		compatible = compatible && isKindCompatible(sliceElemKind(refPtr.Elem()), sliceElemKind(refdef))
+	} else {
+		compatible = isKindCompatible(refPtr.Elem().Kind(), refdef.Kind())
+	}
+	if !compatible {
+		return newErrorf(errInvalidType, "incompatible default value type: %s", flag.Names)
+	}
+	flag.Default = def
+	return nil
+}
+
+func (r register) updateFlagSelects(flag *Flag, val interface{}) error {
+	if val == nil {
+		return nil
+	}
+
+	refval := reflect.ValueOf(flag.Ptr).Elem()
+	k := sliceElemKind(refval)
+	if isKindNumber(k) {
+		fs := convertNumbersToFloats(val)
+		flag.Selects = fs
+		return nil
+	}
+	if k == reflect.String {
+		if vals, ok := val.([]string); ok && len(vals) != 0 {
+			flag.Selects = vals
+			return nil
+		}
+	}
+	return newErrorf(errInvalidSelects, "invalid selects: %s, %v", flag.Names, val)
+}
+
 func (r register) registerFlag(parent, set *FlagSet, flag Flag) error {
 	refval := reflect.ValueOf(flag.Ptr)
 	if refval.Kind() != reflect.Ptr {
@@ -66,24 +105,15 @@ func (r register) registerFlag(parent, set *FlagSet, flag Flag) error {
 		return newErrorf(errInvalidType, "unsupported flag type: %s", flag.Names)
 	}
 	if flag.Default != nil {
-		var compatible bool
-
-		refdef := reflect.ValueOf(flag.Default)
-		if isSlicePtr(flag.Ptr) {
-			compatible = refdef.Kind() == reflect.Slice
-			compatible = compatible && isKindCompatible(sliceElemKind(refval.Elem()), sliceElemKind(refdef))
-		} else {
-			compatible = isKindCompatible(refval.Elem().Kind(), refdef.Kind())
-		}
-		if !compatible {
-			return newErrorf(errInvalidType, "incompatible default value type: %s", flag.Names)
+		err := r.updateFlagDefault(&flag, flag.Default)
+		if err != nil {
+			return err
 		}
 	}
 	if flag.Selects != nil {
-		var err error
-		flag.Selects, err = parseSelectsValue(flag.Ptr, flag.Selects)
+		err := r.updateFlagSelects(&flag, flag.Selects)
 		if err != nil {
-			return newErrorf(errInvalidSelects, "%s: %s", flag.Names, err.Error())
+			return err
 		}
 	}
 
@@ -132,18 +162,16 @@ func (r register) registerSet(parent, set *FlagSet, flag Flag) (*FlagSet, error)
 func (r register) registerStructure(parent, set *FlagSet, st interface{}) error {
 	// parent is used to checking duplicate flags and indicate that subset must has a 'Enable' field
 	const (
-		tagNames     = "names"
-		tagArglist   = "arglist"
-		tagUsage     = "usage"
-		tagDesc      = "desc"
-		tagVersion   = "version"
-		tagImportant = "important"
+		tagNames   = "names"
+		tagArglist = "arglist"
+		tagUsage   = "usage"
+		tagDesc    = "desc"
+		tagVersion = "version"
 
 		tagEnv     = "env"
 		tagValsep  = "valsep"
 		tagDefault = "default"
 		tagSelects = "selects"
-		tagExpand  = "expand"
 		tagArgs    = "args"
 
 		fieldSubsetEnable = "Enable"
@@ -203,12 +231,11 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}) error 
 			}
 
 			var (
-				names     = fieldType.Tag.Get(tagNames)
-				usage     = fieldType.Tag.Get(tagUsage)
-				desc      = fieldType.Tag.Get(tagDesc)
-				version   = fieldType.Tag.Get(tagVersion)
-				arglist   = fieldType.Tag.Get(tagArglist)
-				important = fieldType.Tag.Get(tagImportant)
+				names   = fieldType.Tag.Get(tagNames)
+				usage   = fieldType.Tag.Get(tagUsage)
+				desc    = fieldType.Tag.Get(tagDesc)
+				version = fieldType.Tag.Get(tagVersion)
+				arglist = fieldType.Tag.Get(tagArglist)
 			)
 			if names == "-" {
 				continue
@@ -218,10 +245,6 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}) error 
 				continue
 			}
 
-			importantVal, err := parseBool(important, "false")
-			if err != nil {
-				return newErrorf(errInvalidValue, "invalid tag import value: %s.%s %s", set.self.Names, fieldType.Name, important)
-			}
 			if fieldVal.Kind() != reflect.Struct {
 				var (
 					env     = fieldType.Tag.Get(tagEnv)
@@ -247,12 +270,11 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}) error 
 					return err
 				}
 				err = r.registerFlag(parent, set, Flag{
-					Names:     names,
-					Arglist:   arglist,
-					Usage:     usage,
-					Desc:      desc,
-					Version:   version,
-					Important: importantVal,
+					Names:   names,
+					Arglist: arglist,
+					Usage:   usage,
+					Desc:    desc,
+					Version: version,
 
 					Ptr:     ptr,
 					Env:     env,
@@ -266,22 +288,15 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}) error 
 			} else if fieldType.Anonymous {
 				parseQueue = append(parseQueue, fieldVal)
 			} else {
-				expand := fieldType.Tag.Get(tagExpand)
 				if names == "" {
 					names = unexportedName(fieldType.Name)
 				}
-				expandVal, err := parseBool(expand, "false")
-				if err != nil {
-					return newErrorf(errInvalidValue, "parse expand value %s as bool failed", expand)
-				}
 				child, err := r.registerSet(parent, set, Flag{
-					Names:     names,
-					Arglist:   arglist,
-					Usage:     usage,
-					Desc:      desc,
-					Version:   version,
-					Important: importantVal,
-					Expand:    expandVal,
+					Names:   names,
+					Arglist: arglist,
+					Usage:   usage,
+					Desc:    desc,
+					Version: version,
 				})
 				if err != nil {
 					return err
@@ -450,6 +465,24 @@ func (r register) updateMeta(set *FlagSet, children string, meta Flag) error {
 	}
 	if meta.Usage != "" {
 		flag.Usage = meta.Usage
+	}
+	if subset == nil {
+		if meta.Default != nil {
+			err = r.updateFlagDefault(flag, meta.Default)
+			if err != nil {
+				return err
+			}
+		}
+		if meta.Selects != nil {
+			err = r.updateFlagSelects(flag, meta.Selects)
+			if err != nil {
+				return err
+			}
+		}
+
+		if meta.Env != "" {
+			flag.Env = meta.Env
+		}
 	}
 	r.cleanFlag(flag)
 	return nil

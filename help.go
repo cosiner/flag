@@ -165,7 +165,7 @@ func (w *writer) writeSet(f *FlagSet) {
 	var (
 		currIndent       = w.inheritIndent
 		flagIndent       = w.nextIndent(currIndent)
-		outline          = !f.self.Expand && !w.forceVerbose
+		outline          = !w.forceVerbose
 		flagCount        = len(f.flags)
 		subsetCount      = len(f.subsets)
 		versionLineCount = len(f.self.versionLines)
@@ -209,20 +209,10 @@ func (w *writer) writeSet(f *FlagSet) {
 			maxFlagInfoLen = w.maxFlagInfoLen(f)
 			nextFlagIndent = w.nextIndent(flagIndent)
 			important      = true
-			hasImportant   bool
 		)
 		for {
 			for i := range f.flags {
 				flag := &f.flags[i]
-				if important != flag.Important {
-					continue
-				}
-				if flag.Important {
-					hasImportant = true
-				} else if hasImportant {
-					w.writeln()
-					hasImportant = false
-				}
 
 				w.writeFlagInfo(flagIndent, flag, false, flag.Arglist, maxFlagInfoLen)
 				w.writeFlagValueInfo(flag)
@@ -248,21 +238,11 @@ func (w *writer) writeSet(f *FlagSet) {
 			maxSubsetLen = w.maxSubsetInfoLen(f, !outline)
 			subsetIndent = flagIndent
 			important    = true
-			hasImportant bool
 		)
 		for {
 			for i := range f.subsets {
 				set := &f.subsets[i]
-				if important != set.self.Important {
-					continue
-				}
 
-				if set.self.Important {
-					hasImportant = true
-				} else if hasImportant {
-					w.writeln()
-					hasImportant = false
-				}
 				nw := writer{
 					buf:           w.buf,
 					inheritIndent: subsetIndent,

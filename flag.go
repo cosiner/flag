@@ -15,7 +15,6 @@ type Flag struct {
 	Usage     string      // short usage message
 	Desc      string      // long description, can be multiple lines
 	descLines []string    // parsed description lines
-	Important bool        // important flag, will be print before unimportant flags
 	Ptr       interface{} // value pointer
 
 	// For Flag
@@ -27,7 +26,6 @@ type Flag struct {
 	// For FlagSet
 	Version      string    // version, can be multiple lines
 	versionLines []string  // parsed version lines
-	Expand       bool      // expand subsets in help message
 	ArgsPtr      *[]string // NArgs pointer
 }
 
@@ -106,7 +104,7 @@ func NewFlagSet(flag Flag) *FlagSet {
 }
 
 func newFlagSet(flag Flag) *FlagSet {
-	defaultReguster.cleanFlag(&flag)
+	defaultRegister.cleanFlag(&flag)
 	return &FlagSet{
 		self:          flag,
 		flagIndexes:   make(map[string]int),
@@ -144,7 +142,7 @@ func (f *FlagSet) isFlagOrSubset(name string) bool {
 //
 // E.g., "tool, cover, -html": Flag{Usage:"display coverage in html"}
 func (f *FlagSet) UpdateMeta(children string, meta Flag) error {
-	return defaultReguster.updateMeta(f, children, meta)
+	return defaultRegister.updateMeta(f, children, meta)
 }
 
 // ErrHandling change the way of error handling
@@ -172,18 +170,18 @@ func (f *FlagSet) NeedHelpFlag(need bool) *FlagSet {
 
 // Flag add a flag to current flagset, it should not duplicate with parent/current/children levels' flag or flagset.
 func (f *FlagSet) Flag(flag Flag) error {
-	return f.errorHandling.handle(defaultReguster.registerFlag(nil, f, flag))
+	return f.errorHandling.handle(defaultRegister.registerFlag(nil, f, flag))
 }
 
 // Subset add a flagset to current flagset and return the subset
 func (f *FlagSet) Subset(flag Flag) (*FlagSet, error) {
-	child, err := defaultReguster.registerSet(nil, f, flag)
+	child, err := defaultRegister.registerSet(nil, f, flag)
 	return child, f.errorHandling.handle(err)
 }
 
 // FindSubset search flagset by the children identifier, children is subset names split by ','.
 func (f *FlagSet) FindSubset(children string) (*FlagSet, error) {
-	_, subset, err := defaultReguster.searchChildrenFlag(f, children)
+	_, subset, err := defaultRegister.searchChildrenFlag(f, children)
 	if subset == nil && err == nil {
 		err = newErrorf(errFlagNotFound, "subset %s is not found", children)
 	}
@@ -192,7 +190,7 @@ func (f *FlagSet) FindSubset(children string) (*FlagSet, error) {
 
 // FindFlag search flag by the children identifier, children is set subset/flag names split by ','.
 func (f *FlagSet) FindFlag(children string) (*Flag, error) {
-	flag, _, err := defaultReguster.searchChildrenFlag(f, children)
+	flag, _, err := defaultRegister.searchChildrenFlag(f, children)
 	if flag == nil && err == nil {
 		err = newErrorf(errFlagNotFound, "flag %s is not found", children)
 	}
@@ -206,7 +204,7 @@ func (f *FlagSet) StructFlags(val interface{}, parent ...*FlagSet) error {
 	if len(parent) > 0 {
 		p = parent[0]
 	}
-	return f.errorHandling.handle(defaultReguster.registerStructure(p, f, val))
+	return f.errorHandling.handle(defaultRegister.registerStructure(p, f, val))
 }
 
 // Parse parse arguments, if empty, os.Args will be used.
@@ -215,7 +213,7 @@ func (f *FlagSet) Parse(args ...string) error {
 		args = os.Args
 	}
 	if !f.noHelpFlag && !f.helpFlagDefined {
-		err := defaultReguster.registerHelpFlags(nil, f)
+		err := defaultRegister.registerHelpFlags(nil, f)
 		if err != nil {
 			return f.errorHandling.handle(err)
 		}
@@ -230,7 +228,7 @@ func (f *FlagSet) Parse(args ...string) error {
 		return f.errorHandling.handle(err)
 	}
 
-	show, verbose := defaultReguster.helpFlagValues(f)
+	show, verbose := defaultRegister.helpFlagValues(f)
 	if show {
 		fmt.Print(r.LastSet.ToString(verbose))
 		os.Exit(0)
