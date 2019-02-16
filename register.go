@@ -183,7 +183,10 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}) error 
 		return newErrorf(errNonPointer, "not pointer of structure")
 	}
 
-	var parseQueue = []reflect.Value{refval.Elem()}
+	var (
+		parseQueue = []reflect.Value{refval.Elem()}
+		metadatas  []Metadata
+	)
 	for {
 		l := len(parseQueue)
 		if l == 0 {
@@ -308,16 +311,19 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}) error 
 			}
 		}
 		if md, ok := st.(Metadata); ok {
-			for children, meta := range md.Metadata() {
-				err := r.updateMeta(set, children, meta)
-				if err != nil {
-					return err
-				}
-			}
+			metadatas = append(metadatas, md)
 		}
 	}
 	if parent != nil && set.self.Ptr == nil {
 		return newErrorf(errInvalidStructure, "child structure must has a 'Enable' field")
+	}
+	for _, md := range metadatas {
+		for children, meta := range md.Metadata() {
+			err := r.updateMeta(set, children, meta)
+			if err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -466,23 +472,20 @@ func (r register) updateMeta(set *FlagSet, children string, meta Flag) error {
 	if meta.Usage != "" {
 		flag.Usage = meta.Usage
 	}
-	if subset == nil {
-		if meta.Default != nil {
-			err = r.updateFlagDefault(flag, meta.Default)
-			if err != nil {
-				return err
-			}
+	if meta.Default != nil {
+		err = r.updateFlagDefault(flag, meta.Default)
+		if err != nil {
+			return err
 		}
-		if meta.Selects != nil {
-			err = r.updateFlagSelects(flag, meta.Selects)
-			if err != nil {
-				return err
-			}
+	}
+	if meta.Selects != nil {
+		err = r.updateFlagSelects(flag, meta.Selects)
+		if err != nil {
+			return err
 		}
-
-		if meta.Env != "" {
-			flag.Env = meta.Env
-		}
+	}
+	if meta.Env != "" {
+		flag.Env = meta.Env
 	}
 	r.cleanFlag(flag)
 	return nil

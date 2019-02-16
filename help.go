@@ -208,22 +208,14 @@ func (w *writer) writeSet(f *FlagSet) {
 		var (
 			maxFlagInfoLen = w.maxFlagInfoLen(f)
 			nextFlagIndent = w.nextIndent(flagIndent)
-			important      = true
 		)
-		for {
-			for i := range f.flags {
-				flag := &f.flags[i]
+		for i := range f.flags {
+			flag := &f.flags[i]
 
-				w.writeFlagInfo(flagIndent, flag, false, flag.Arglist, maxFlagInfoLen)
-				w.writeFlagValueInfo(flag)
-				w.writeln()
-				w.writeLines(nextFlagIndent, flag.descLines)
-			}
-			if important {
-				important = false
-			} else {
-				break
-			}
+			w.writeFlagInfo(flagIndent, flag, false, flag.Arglist, maxFlagInfoLen)
+			w.writeFlagValueInfo(flag)
+			w.writeln()
+			w.writeLines(nextFlagIndent, flag.descLines)
 		}
 	}
 
@@ -237,25 +229,17 @@ func (w *writer) writeSet(f *FlagSet) {
 		var (
 			maxSubsetLen = w.maxSubsetInfoLen(f, !outline)
 			subsetIndent = flagIndent
-			important    = true
 		)
-		for {
-			for i := range f.subsets {
-				set := &f.subsets[i]
+		for i := range f.subsets {
+			set := &f.subsets[i]
 
-				nw := writer{
-					buf:           w.buf,
-					inheritIndent: subsetIndent,
-					forceVerbose:  w.forceVerbose,
-					maxInfoLen:    maxSubsetLen,
-				}
-				nw.writeSet(set)
+			nw := writer{
+				buf:           w.buf,
+				inheritIndent: subsetIndent,
+				forceVerbose:  w.forceVerbose,
+				maxInfoLen:    maxSubsetLen,
 			}
-			if important {
-				important = false
-			} else {
-				break
-			}
+			nw.writeSet(set)
 		}
 	}
 }
