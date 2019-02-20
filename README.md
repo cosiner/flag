@@ -154,7 +154,7 @@ type GoCmd struct {
 		Race    bool   `important:"1" desc:"enable data race detection.\nSupported only on linux/amd64, freebsd/amd64, darwin/amd64 and windows/amd64."`
 		Output  string `names:"-o" arglist:"output" important:"1" desc:"only allowed when compiling a single package"`
 
-		LdFlags  string   `names:"-ldflags" arglist:"'flag list'" desc:"rguments to pass on each go tool link invocation."`
+		LdFlags  string   `names:"-ldflags" arglist:"'flag list'" desc:"arguments to pass on each go tool link invocation."`
 		Packages []string `args:"true"`
 	} `usage:"compile packages and dependencies"`
 	Clean struct {
@@ -246,7 +246,7 @@ Flags:
             only allowed when compiling a single package
 
       -ldflags 'flag list'
-            rguments to pass on each go tool link invocation.
+            arguments to pass on each go tool link invocation.
 ```
 # LICENSE
 MIT.
