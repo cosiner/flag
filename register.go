@@ -119,7 +119,10 @@ func (r register) registerFlag(parent, set *FlagSet, flag Flag) error {
 
 	ns, names := r.cleanFlagNames(flag.Names)
 	if duplicates := r.findDuplicates(parent, set, ns); len(duplicates) > 0 {
-		return newErrorf(errDuplicateFlagRegister, "duplicate flags with parent/self/childs: %s->%s, %v", parent.self.Names, set.self.Names, duplicates)
+		if parent != nil {
+			return newErrorf(errDuplicateFlagRegister, "duplicate flags with parent/self/children: %s->%s, %v", parent.self.Names, set.self.Names, duplicates)
+		}
+		return newErrorf(errDuplicateFlagRegister, "duplicate flags with self/children: %s, %v", set.self.Names, duplicates)
 	}
 
 	flag.Names = names
