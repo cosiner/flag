@@ -176,7 +176,7 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}) error 
 		tagDefault      = "default"
 		tagSelects      = "selects"
 		tagArgs         = "args"
-		tagArgsAnywhere = "anywhere"
+		tagArgsAnywhere = "argsAnywhere"
 
 		fieldSubsetEnable = "Enable"
 		fieldArgs         = "Args"

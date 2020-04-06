@@ -102,7 +102,7 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 			}
 			return false
 		}
-		appendRemainArg = func(arg argument, args []argument) error {
+		appendNonFlagArg = func(arg argument, args []argument) error {
 			if f.self.ArgsPtr == nil || (!f.self.ArgsAnywhere && hasFlag(args[1:])) {
 				return newErrorf(errStandaloneValue, "standalone value without flag: %v %s", context, arg.Value)
 			}
@@ -136,27 +136,22 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 			}
 			flag = nil
 		case argumentValue:
-			if flag == nil {
-				err = appendRemainArg(args[i], args[i:])
+			if flag == nil || (argCount != 1 && !isSlicePtr(flag.Ptr)) {
+				err = appendNonFlagArg(args[i], args[i:])
 				if err != nil {
 					return err
 				}
-				break
-			}
-			if argCount == 1 {
-				applied[flag] = true
-			} else if !isSlicePtr(flag.Ptr) {
-				err = appendRemainArg(args[i], args[i:])
+				argCount = 0
+				flag = nil
+			} else {
+				if argCount == 1 {
+					applied[flag] = true
+				}
+				argCount++
+				err = r.applyVals(flag, arg.Value)
 				if err != nil {
 					return err
 				}
-				break
-			}
-
-			argCount++
-			err = r.applyVals(flag, arg.Value)
-			if err != nil {
-				return err
 			}
 		default:
 			panic("unreachable")

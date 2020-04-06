@@ -26,8 +26,8 @@ type Flag struct {
 	// For FlagSet
 	Version      string    // version, can be multiple lines
 	versionLines []string  // parsed version lines
-	ArgsPtr      *[]string // NArgs pointer
-	ArgsAnywhere bool      // args must appears at anywhere, otherwise, it must appears at command line last.
+	ArgsPtr      *[]string // non-flag arguments pointer
+	ArgsAnywhere bool      // non-flag args must appears at anywhere, otherwise, it must appears at command line last.
 }
 
 // Metadata can be implemented by structure to update flag metadata.
