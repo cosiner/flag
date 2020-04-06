@@ -27,6 +27,8 @@ const (
 
 func (t errorType) String() string {
 	switch t {
+	case 0:
+		return "NoError"
 	case errNonPointer:
 		return "NonPointerStructure "
 	case errFlagNotFound:

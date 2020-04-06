@@ -102,14 +102,12 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 			}
 			return false
 		}
-		appendRemainArgs = func(args []argument) error {
-			if f.self.ArgsPtr == nil /*|| hasFlag(args[1:]) */ {
-				return newErrorf(errStandaloneValue, "standalone value without flag: %v %s", context, args[0].Value)
+		appendRemainArg = func(arg argument, args []argument) error {
+			if f.self.ArgsPtr == nil || (!f.self.ArgsAnywhere && hasFlag(args[1:])) {
+				return newErrorf(errStandaloneValue, "standalone value without flag: %v %s", context, arg.Value)
 			}
 			slice := *f.self.ArgsPtr
-			for i := range args {
-				slice = append(slice, args[i].Value)
-			}
+			slice = append(slice, arg.Value)
 			*f.self.ArgsPtr = slice
 			return nil
 		}
@@ -139,20 +137,20 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 			flag = nil
 		case argumentValue:
 			if flag == nil {
-				err = appendRemainArgs(args[i:])
+				err = appendRemainArg(args[i], args[i:])
 				if err != nil {
 					return err
 				}
-				goto END
+				break
 			}
 			if argCount == 1 {
 				applied[flag] = true
 			} else if !isSlicePtr(flag.Ptr) {
-				err = appendRemainArgs(args[i:])
+				err = appendRemainArg(args[i], args[i:])
 				if err != nil {
 					return err
 				}
-				goto END
+				break
 			}
 
 			argCount++
@@ -168,7 +166,7 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 	if err != nil {
 		return err
 	}
-END:
+
 	return r.applyEnvOrDefault(f, applied)
 }
 

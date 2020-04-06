@@ -171,11 +171,12 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}) error 
 		tagDesc    = "desc"
 		tagVersion = "version"
 
-		tagEnv     = "env"
-		tagValsep  = "valsep"
-		tagDefault = "default"
-		tagSelects = "selects"
-		tagArgs    = "args"
+		tagEnv          = "env"
+		tagValsep       = "valsep"
+		tagDefault      = "default"
+		tagSelects      = "selects"
+		tagArgs         = "args"
+		tagArgsAnywhere = "anywhere"
 
 		fieldSubsetEnable = "Enable"
 		fieldArgs         = "Args"
@@ -215,6 +216,11 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}) error 
 				return newErrorf(errInvalidValue, "non-bool tag args value: %s.%s %s", set.self.Names, fieldType.Name, args)
 			}
 			if fieldType.Name == fieldArgs || isArgs {
+				argsAnywhere := fieldType.Tag.Get(tagArgsAnywhere)
+				anywhere, err := parseBool(argsAnywhere, "false")
+				if err != nil {
+					return newErrorf(errInvalidValue, "non-bool tag anywhere value: %s.%s %s", set.self.Names, fieldType.Name, argsAnywhere)
+				}
 				if set.self.ArgsPtr != nil {
 					return newErrorf(errDuplicateFlagRegister, "duplicate args field: %s", set.self.Names)
 				}
@@ -222,6 +228,7 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}) error 
 					return newErrorf(errInvalidType, "invalid %s:Args field type, expect []string", set.self.Names)
 				}
 				set.self.ArgsPtr = fieldVal.Addr().Interface().(*[]string)
+				set.self.ArgsAnywhere = anywhere
 				continue
 			}
 
