@@ -103,7 +103,7 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 			return false
 		}
 		appendRemainArgs = func(args []argument) error {
-			if f.self.ArgsPtr == nil || hasFlag(args[1:]) {
+			if f.self.ArgsPtr == nil /*|| hasFlag(args[1:]) */ {
 				return newErrorf(errStandaloneValue, "standalone value without flag: %v %s", context, args[0].Value)
 			}
 			slice := *f.self.ArgsPtr
