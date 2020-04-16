@@ -224,7 +224,7 @@ func (w *writer) writeFlagSet(f *FlagSet) {
 			w.writeln()
 		}
 		if w.isTop {
-			w.writeln(currIndent, "Sets:")
+			w.writeln(currIndent, "Commands:")
 		}
 		var (
 			maxSubsetLen = w.maxSubsetInfoLen(f, !outline)
