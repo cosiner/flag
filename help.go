@@ -75,13 +75,13 @@ func (w *writer) arglist(f *FlagSet) string {
 	)
 	if flagCount != 0 {
 		if setCount != 0 {
-			arglist = "[FLAG|SET]..."
+			arglist = "[FLAG|COMMAND]..."
 		} else {
 			arglist = "[FLAG]..."
 		}
 	} else {
 		if setCount != 0 {
-			arglist = "[SET]..."
+			arglist = "[COMMAND]..."
 		}
 	}
 	return arglist
