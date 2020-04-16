@@ -17,8 +17,8 @@ const (
 	errInvalidType
 	errInvalidValue
 	errDuplicateFlagRegister
-	errStandaloneFlag
-	errStandaloneValue
+	errFlagValueNotProvided
+	errNonFlagValue
 	errDuplicateFlagParsed
 	errInvalidSelects
 	errInvalidDefault
@@ -41,10 +41,10 @@ func (t errorType) String() string {
 		return "InvalidValue"
 	case errDuplicateFlagRegister:
 		return "DuplicateFlagRegister"
-	case errStandaloneFlag:
-		return "StandaloneFlag"
-	case errStandaloneValue:
-		return "StandaloneValue"
+	case errFlagValueNotProvided:
+		return "FlagValueNotProvided"
+	case errNonFlagValue:
+		return "NonFlagValue"
 	case errDuplicateFlagParsed:
 		return "DuplicateFlagParsed"
 	case errInvalidSelects:
@@ -57,7 +57,7 @@ func (t errorType) String() string {
 }
 
 func (e flagError) Error() string {
-	return fmt.Sprintf("%s: %s", e.Type, e.Value)
+	return e.Value
 }
 
 func newErrorf(t errorType, format string, v ...interface{}) error {

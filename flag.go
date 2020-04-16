@@ -253,7 +253,7 @@ func (f *FlagSet) ToString(verbose bool) string {
 		buf:          &buf,
 		isTop:        true,
 		forceVerbose: verbose,
-	}).writeSet(f)
+	}).writeFlagSet(f)
 	return buf.String()
 }
 

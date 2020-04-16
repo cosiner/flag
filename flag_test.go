@@ -76,9 +76,9 @@ var tarCase = TestCases{
 			Errors: []errorType{
 				errFlagNotFound,
 				errFlagNotFound,
-				errStandaloneFlag,
+				errFlagValueNotProvided,
 				errInvalidValue,
-				errStandaloneValue,
+				errNonFlagValue,
 				errDuplicateFlagParsed,
 			},
 		},
@@ -177,7 +177,7 @@ var goCases = TestCases{
 				"go test bld",
 			},
 			Errors: []errorType{
-				errStandaloneValue,
+				errNonFlagValue,
 			},
 		},
 	},

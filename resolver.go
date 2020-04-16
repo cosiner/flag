@@ -92,7 +92,7 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 				applied[flag] = true
 				return r.applyVals(flag, "true")
 			}
-			return newErrorf(errStandaloneFlag, "standalone flag without values: %v.%s", context, flag.Names)
+			return newErrorf(errFlagValueNotProvided, "flag value is not provided: %v.%s", context, flag.Names)
 		}
 		hasFlag = func(args []argument) bool {
 			for i := range args {
@@ -104,7 +104,7 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 		}
 		appendNonFlagArg = func(arg argument, args []argument) error {
 			if f.self.ArgsPtr == nil || (!f.self.ArgsAnywhere && hasFlag(args[1:])) {
-				return newErrorf(errStandaloneValue, "standalone value without flag: %v %s", context, arg.Value)
+				return newErrorf(errNonFlagValue, "unexpected non-flag value: %v %s", context, arg.Value)
 			}
 			slice := *f.self.ArgsPtr
 			slice = append(slice, arg.Value)

@@ -161,7 +161,7 @@ func (w *writer) writeFlagValueInfo(flag *Flag) {
 	w.write(")")
 }
 
-func (w *writer) writeSet(f *FlagSet) {
+func (w *writer) writeFlagSet(f *FlagSet) {
 	var (
 		currIndent       = w.inheritIndent
 		flagIndent       = w.nextIndent(currIndent)
@@ -194,8 +194,8 @@ func (w *writer) writeSet(f *FlagSet) {
 		if w.isTop {
 			w.writeln()
 			w.writeln(currIndent, "Description:")
+			w.writeLines(flagIndent, f.self.descLines)
 		}
-		w.writeLines(flagIndent, f.self.descLines)
 	}
 
 	if flagCount > 0 {
@@ -239,7 +239,7 @@ func (w *writer) writeSet(f *FlagSet) {
 				forceVerbose:  w.forceVerbose,
 				maxInfoLen:    maxSubsetLen,
 			}
-			nw.writeSet(set)
+			nw.writeFlagSet(set)
 		}
 	}
 }
