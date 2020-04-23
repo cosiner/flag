@@ -191,7 +191,7 @@ func (s *scanner) scanArg(f *FlagSet, isFirst bool, curr, next string) (consumed
 		s.append(f, argument{Type: typ, Value: curr})
 	case curr == stopConsumption:
 		s.append(f, argument{Type: argumentStopConsumption, Value: curr})
-	case s.canBeSplitBy(curr, equal):
+	case strings.HasPrefix(curr, dash) && s.canBeSplitBy(curr, equal):
 		secs := strings.SplitN(curr, equal, 2)
 		for i, sec := range secs {
 			typ := argumentFlag
