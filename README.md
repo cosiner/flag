@@ -58,9 +58,13 @@ Documentation can be found at [Godoc](https://godoc.org/github.com/cosiner/flag)
 # Example
 ## Flags
 ```Go
-package flag
+package main
 
-import "fmt"
+import (
+	"fmt"
+
+	flag "github.com/cosiner/flag"
+)
 
 type Tar struct {
 	GZ          bool     `names:"-z, --gz" usage:"gzip format"`
@@ -73,7 +77,7 @@ type Tar struct {
 	SourceFiles []string `args:"true"`
 }
 
-func (t *Tar) Metadata() map[string]Flag {
+func (t *Tar) Metadata() map[string]flag.Flag {
 	const (
 		usage   = "tar is a tool for manipulate tape archives."
 		version = `
@@ -87,7 +91,7 @@ func (t *Tar) Metadata() map[string]Flag {
 		cpio, ar, and shar archives.
 		`
 	)
-	return map[string]Flag{
+	return map[string]flag.Flag{
 		"": {
 			Usage:   usage,
 			Version: version,
@@ -99,22 +103,21 @@ func (t *Tar) Metadata() map[string]Flag {
 	}
 }
 
-func ExampleFlagSet_ParseStruct() {
+func main() {
 	var tar Tar
 
-	NewFlagSet(Flag{}).ParseStruct(&tar, "tar", "-zcf", "a.tgz", "a.go", "b.go")
+	flag.NewFlagSet(flag.Flag{}).ParseStruct(&tar, os.Args...)
 	fmt.Println(tar.GZ)
 	fmt.Println(tar.Create)
 	fmt.Println(tar.File)
 	fmt.Println(tar.SourceFiles)
 
-	// Output:
+	// Output for `$ go build -o "tar" . && ./tar -zcf a.tgz a.go b.go`:
 	// true
 	// true
 	// a.tgz
 	// [a.go b.go]
 }
-
 ```
 ## Help message
 ```
@@ -146,6 +149,13 @@ Flags:
 
 ## FlagSet
 ```Go
+package main
+
+import (
+	"fmt"
+
+	flag "github.com/cosiner/flag"
+)
 
 type GoCmd struct {
 	Build struct {
@@ -177,8 +187,8 @@ type GoCmd struct {
 	} `usage:"run gofmt on package sources"`
 }
 
-func (*GoCmd) Metadata() map[string]Flag {
-	return map[string]Flag{
+func (*GoCmd) Metadata() map[string]flag.Flag {
+	return map[string]flag.Flag{
 		"": {
 			Usage:   "Go is a tool for managing Go source code.",
 			Arglist: "command [argument]",
@@ -196,10 +206,10 @@ func (*GoCmd) Metadata() map[string]Flag {
 	}
 }
 
-func TestSubset(t *testing.T) {
+func main() {
 	var g GoCmd
 
-	set := NewFlagSet(Flag{})
+	set := flag.NewFlagSet(flag.Flag{})
 	set.StructFlags(&g)
 	set.Help(false)
 	fmt.Println()
