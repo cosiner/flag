@@ -157,6 +157,7 @@ import (
 	flag "github.com/cosiner/flag"
 )
 
+
 type GoCmd struct {
 	Build struct {
 		Enable  bool
@@ -170,21 +171,6 @@ type GoCmd struct {
 	Clean struct {
 		Enable bool
 	} `usage:"remove object files"`
-	Doc struct {
-		Enable bool
-	} `usage:"show documentation for package or symbol"`
-	Env struct {
-		Enable bool
-	} `usage:"print Go environment information"`
-	Bug struct {
-		Enable bool
-	} `usage:"start a bug report"`
-	Fix struct {
-		Enable bool
-	} `usage:"run go tool fix on packages"`
-	Fmt struct {
-		Enable bool
-	} `usage:"run gofmt on package sources"`
 }
 
 func (*GoCmd) Metadata() map[string]flag.Flag {
@@ -210,12 +196,27 @@ func main() {
 	var g GoCmd
 
 	set := flag.NewFlagSet(flag.Flag{})
-	set.StructFlags(&g)
-	set.Help(false)
-	fmt.Println()
-	build, _ := set.FindSubset("build")
-	build.Help(false)
+	set.ParseStruct(&g, os.Args...)
+
+	if g.Build.Enable {
+		if len(g.Build.Packages) == 0 {
+			fmt.Fprintln(os.Stderr, "Error: you should at least specify one package")
+			fmt.Println("")
+			build, _ := set.FindSubset("build")
+			build.Help(false) // display usage information for the "go build" command only
+		} else {
+			fmt.Println("Going to build with the following parameters:")
+			fmt.Println(g.Build)
+		}
+	} else if g.Clean.Enable {
+		fmt.Println("Going to clean with the following parameters:")
+		fmt.Println(g.Clean)
+	} else {
+		set.Help(false) // display usage information, with list of supported commands
+	}
 }
+
+// Test with `$ go build -o "go" . && ./go --help`
 ```
 ##Help Message
 ```
