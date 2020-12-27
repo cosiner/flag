@@ -78,13 +78,12 @@ func (r *resolver) applyEnvAndDefault(f *FlagSet, applied map[*Flag]bool) error 
 
 func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) error {
 	var (
-		applied  = make(map[*Flag]bool)
-		flag     *Flag
-		argCount int
-		err      error
+		applied = make(map[*Flag]bool)
+		flag    *Flag
+		err     error
 
 		applyLastFlag = func() error {
-			if argCount != 1 { // applied or no arg
+			if flag == nil {
 				return nil
 			}
 
@@ -126,32 +125,21 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 				return newErrorf(errFlagNotFound, "unsupported flag: %v.%s", context, arg.Value)
 			}
 			if applied[flag] && !isSlicePtr(flag.Ptr) {
-				return newErrorf(errDuplicateFlagParsed, "duplicate flag: %v.%s", context, flag.Names)
+				return newErrorf(errDuplicateFlagParsed, "duplicated flag: %v.%s", context, flag.Names)
 			}
-			argCount = 1
-		case argumentStopConsumption:
-			err = applyLastFlag()
-			if err != nil {
-				return err
-			}
-			flag = nil
 		case argumentValue:
-			if flag == nil || (argCount != 1 && !isSlicePtr(flag.Ptr)) {
+			if flag == nil {
 				err = appendNonFlagArg(args[i], args[i:])
 				if err != nil {
 					return err
 				}
-				argCount = 0
-				flag = nil
 			} else {
-				if argCount == 1 {
-					applied[flag] = true
-				}
-				argCount++
+				applied[flag] = true
 				err = r.applyVals(flag, arg.Value)
 				if err != nil {
 					return err
 				}
+				flag = nil
 			}
 		default:
 			panic("unreachable")

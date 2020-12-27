@@ -1,21 +1,14 @@
 package flag
 
-import "strings"
+import (
+	"strings"
+)
 
 const (
 	argumentFlagSplittable = iota + 1
 	argumentFlag
 	argumentValue
-	argumentStopConsumption
 	argumentPending
-
-	dash       = "-"
-	doubleDash = "--"
-
-	nextAsValue     = "--"
-	allAsValue      = "--*"
-	stopConsumption = "-!"
-	equal           = "="
 )
 
 type argument struct {
@@ -62,7 +55,7 @@ func (s *scanner) isAlphabet(r rune) bool {
 func (s *scanner) checkSplits(f *FlagSet, rs []rune) (allFlag, firstFlag bool) {
 	allFlag = true
 	for i, r := range rs {
-		isFlag := f.isFlagOrSubset(dash + string(r))
+		isFlag := f.isFlagOrSubset("-" + string(r))
 		if isFlag {
 			if i == 0 && s.isAlphabet(r) && !s.isAlphabet(rs[i+1]) {
 				firstFlag = true
@@ -137,12 +130,12 @@ func (s *scanner) appendSplittable(f *FlagSet, arg argument) {
 		}
 		if allFlag {
 			for _, r := range flagRunes {
-				s.appendArg(argument{Type: argumentFlag, Value: dash + string(r)}, false)
+				s.appendArg(argument{Type: argumentFlag, Value: "-" + string(r)}, false)
 			}
 			return false, false
 		}
 		if firstFlag {
-			s.appendArg(argument{Type: argumentFlag, Value: dash + string(flagRunes[0])}, false)
+			s.appendArg(argument{Type: argumentFlag, Value: "-" + string(flagRunes[0])}, false)
 			s.appendArg(argument{Type: argumentValue, Value: string(flagRunes[1:])}, false)
 			return false, false
 		}
@@ -152,7 +145,7 @@ func (s *scanner) appendSplittable(f *FlagSet, arg argument) {
 
 func (s *scanner) append(f *FlagSet, arg argument) {
 	switch arg.Type {
-	case argumentValue, argumentStopConsumption:
+	case argumentValue:
 		s.appendArg(arg, false)
 	case argumentFlag, argumentPending:
 		s.tryAppendFlagOrSubset(f, arg, true)
@@ -167,39 +160,38 @@ func (s *scanner) canBeSplitBy(arg, sep string) bool {
 }
 
 func (s *scanner) scanArg(f *FlagSet, args []string, i int) (consumed int) {
-
 	curr := args[i]
 	consumed = 1
 	switch {
 	case i == 0:
 		s.append(f, argument{Type: argumentFlag, Value: curr})
-	case curr == nextAsValue:
+	case curr == "--":
 		if i != len(args)-1 {
 			curr = args[i+1]
 			consumed++
 			s.append(f, argument{Type: argumentValue, Value: curr})
 		}
-	case curr == allAsValue:
+	case curr == "--*":
 		for j := i + 1; j < len(args); j++ {
 			curr = args[j]
 			s.append(f, argument{Type: argumentValue, Value: curr})
 			consumed++
 		}
-	case curr == stopConsumption:
-		s.append(f, argument{Type: argumentStopConsumption, Value: curr})
-	case strings.HasPrefix(curr, dash) && s.canBeSplitBy(curr, equal):
-		secs := strings.SplitN(curr, equal, 2)
+	case strings.HasPrefix(curr, "-") && s.canBeSplitBy(curr, "="):
+		secs := strings.SplitN(curr, "=", 2)
 		for i, sec := range secs {
 			typ := argumentFlag
 			if i != 0 {
 				typ = argumentValue
+			} else if !strings.HasPrefix(sec, "--") && len(sec) >= 3 {
+				typ = argumentFlagSplittable
 			}
 			s.append(f, argument{Type: typ, Value: sec})
 		}
-	case strings.HasPrefix(curr, doubleDash):
+	case strings.HasPrefix(curr, "--"):
 		s.append(f, argument{Type: argumentFlag, Value: curr})
 	case s.tryAppendFlagOrSubset(f, argument{Type: argumentPending, Value: curr}, false):
-	case curr != dash && strings.HasPrefix(curr, dash):
+	case curr != "-" && strings.HasPrefix(curr, "-"):
 		s.append(f, argument{Type: argumentFlagSplittable, Value: curr})
 	default:
 		s.append(f, argument{Type: argumentValue, Value: curr})

@@ -17,6 +17,7 @@ var tarCase = TestCases{
 			Cmds: []string{
 				"tar -zcf a.tgz a b c",
 				"tar -zc -f=a.tgz a b c",
+				"tar -zcf=a.tgz a b c",
 				"tar -z -c -f a.tgz a b c",
 				"tar --gz -c -f a.tgz a b c",
 			},
@@ -394,18 +395,18 @@ func TestSubset(t *testing.T) {
 	build.Help(0)
 }
 
-func TestStopConsumption(t *testing.T) {
+func TestSlice(t *testing.T) {
 	type Flags struct {
 		Slice []string
 		Rest  []string `args:"true"`
 	}
 
 	var flags Flags
-	NewFlagSet(Flag{}).ParseStruct(&flags, "test", "-slice", "a", "b", "--", "-!", "-!", "c", "d")
-	if !reflect.DeepEqual(flags.Slice, []string{"a", "b", "-!"}) {
-		t.FailNow()
+	NewFlagSet(Flag{}).ParseStruct(&flags, "test", "-slice", "a", "-slice", "b", "-slice", "--", "-c", "d")
+	if !reflect.DeepEqual(flags.Slice, []string{"a", "b", "-c"}) {
+		t.Fatal("slice test failed", flags.Slice)
 	}
-	if !reflect.DeepEqual(flags.Rest, []string{"c", "d"}) {
-		t.FailNow()
+	if !reflect.DeepEqual(flags.Rest, []string{"d"}) {
+		t.Fatal("slice test failed", flags.Rest)
 	}
 }

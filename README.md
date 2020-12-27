@@ -10,21 +10,21 @@ Flag is a simple but powerful commandline flag parsing library for [Go](https://
 Documentation can be found at [Godoc](https://godoc.org/github.com/cosiner/flag)
 
 # Features
-* Support types: bool, string, all number types(except complex), slice of bool, string, number.
-* Embed structure as subcommand.
+* Support types: bool, string, all number types(except complex).
+* Support slice: eg: ` -file a.go -file b.go -file c.go`.
 * Multiple flag names, e.g. '-z, -gz, -gzip, --gz, --gzip'
-* '--' to hint that next argument must be a value, e.g. 'rm -- -a.go' to delete file '-a.go'
+* '--' to hint that next argument is a value, e.g. 'rm -- -a.go' to delete file '-a.go'
 * '--\*' to hint that latter all arguments are values, e.g. 'rm --* -a.go -b.go -c.go' to delete files '-a.go -b.go -c.go'
-* '-!' to stop greedy-consumption for slice flags.
 * Support '=', e.g. '-a=b', '-a=true'
 * Support single bool flag, e.g. '-rm' is equal to '-rm=true'
-* Support multiple single flags: e.g. '-zcf a.tgz' is equal to '-z -c -f a.tgz'
+* Support multiple single flags: e.g. '-zcf a.tgz' and '-zcf=a.tgz' is equal to '-z -c -f a.tgz'
 * Support '-I/usr/include' like format, the character next to '-' must be a alphabet, and the next next must not be.
 * Support catch non-flag values, e.g. 'tar -zcf a.tgz a.go b.go' will catch the values ['a.go', 'b.go']
 * Default value
 * Select values
 * Environment variable
 * Duplicate flag names detect
+* Embed structure as subcommand.
 
 # Parsing
 * Flag/FlagSet
