@@ -1,9 +1,8 @@
 package flag
 
 import (
-	"bytes"
 	"fmt"
-	"strings"
+	"text/tabwriter"
 )
 
 const (
@@ -11,15 +10,16 @@ const (
 	maxInfoLen = 24
 )
 
-type writer struct {
-	buf           *bytes.Buffer
-	isTop         bool
-	inheritIndent string
-	forceVerbose  bool
-	maxInfoLen    int
+type helpWriter struct {
+	buf    *tabwriter.Writer
+	isTop  bool
+	indent string
+
+	maxVerboseLevel  int
+	currVerboseLevel int
 }
 
-func (w *writer) maxFlagInfoLen(f *FlagSet) int {
+func (w *helpWriter) maxFlagInfoLen(f *FlagSet) int {
 	var maxLen int
 	for i := range f.flags {
 		l := len(f.flags[i].Names)
@@ -39,110 +39,76 @@ func (w *writer) maxFlagInfoLen(f *FlagSet) int {
 	return maxLen
 }
 
-func (w *writer) maxSubsetInfoLen(f *FlagSet, needArglist bool) int {
-	var maxLen int
-	for i := range f.subsets {
-		l := len(f.subsets[i].self.Names)
-		if needArglist {
-			args := w.arglist(&f.subsets[i])
-			if args != "" {
-				l += 1 + len(args)
-			}
-		}
-		if maxLen < l {
-			maxLen = l
-		}
-	}
-	if maxLen < minInfoLen {
-		maxLen = minInfoLen
-	}
-	if maxLen > maxInfoLen {
-		maxLen = maxInfoLen
-	}
-	return maxLen
-}
-
-func (w *writer) arglist(f *FlagSet) string {
-	if f.self.Arglist == "-" {
-		return ""
-	}
-	if f.self.Arglist != "" {
-		return f.self.Arglist
-	}
-	var (
-		arglist             string
-		flagCount, setCount = len(f.flags), len(f.subsets)
-	)
-	if flagCount != 0 {
-		if setCount != 0 {
-			arglist = "[FLAG|COMMAND]..."
-		} else {
-			arglist = "[FLAG]..."
-		}
-	} else {
-		if setCount != 0 {
-			arglist = "[COMMAND]..."
-		}
-	}
-	return arglist
-}
-
-func (w *writer) write(elem ...string) {
-	for _, s := range elem {
-		w.buf.WriteString(s)
-	}
-}
-
-func (w *writer) nextIndent(curr string) string {
+func (w *helpWriter) nextIndent(curr string) string {
 	const indent = "\t"
 	return curr + indent
 }
 
-func (w *writer) writeln(elem ...string) {
-	w.write(elem...)
-	w.buf.WriteByte('\n')
-}
-
-func (w *writer) writeWithPads(names string, maxLen int) {
-	w.write(names)
-	if padlen := maxLen - len(names); padlen > 0 {
-		w.write(strings.Repeat(" ", padlen))
+func (w *helpWriter) write(elem ...string) {
+	for _, s := range elem {
+		w.buf.Write([]byte(s))
 	}
 }
 
-func (w *writer) writeLines(indent string, lines []string) {
+func (w *helpWriter) writeln(elem ...string) {
+	w.write(elem...)
+	w.buf.Write([]byte{'\n'})
+}
+
+func (w *helpWriter) writeLines(indent string, lines []string) {
 	for _, line := range lines {
 		w.writeln(indent, line)
 	}
 }
 
-func (w *writer) parseFlagInfo(flag *Flag, args string) string {
-	info := flag.Names
-	if args != "" {
-		info += " " + args
-	}
-	return info
-}
-
-func (w *writer) writeFlagInfo(currIndent string, flag *Flag, isTop bool, args string, maxInfoLen int) {
-	w.write(currIndent)
-	if isTop {
-		if flag.Usage != "" {
-			w.writeln(currIndent, flag.Usage)
-			w.writeln()
+func (w *helpWriter) writeTopCommandInfo(currIndent string, f *FlagSet) {
+	var arglist string
+	switch f.self.Arglist {
+	case "-":
+	default:
+		arglist = f.self.Arglist
+	case "":
+		flagCount, cmdCount := len(f.flags), len(f.subsets)
+		if flagCount != 0 {
+			if cmdCount != 0 {
+				arglist = "[FLAG|COMMAND]..."
+			} else {
+				arglist = "[FLAG]..."
+			}
+		} else {
+			if cmdCount != 0 {
+				arglist = "[COMMAND]..."
+			}
 		}
-		w.writeln(currIndent, "Usage:")
-		w.write(w.nextIndent(currIndent))
 	}
-	flagInfo := w.parseFlagInfo(flag, args)
-	w.writeWithPads(flagInfo, maxInfoLen)
-	if !isTop && flag.Usage != "" {
-		w.write(" ", flag.Usage)
+	if f.self.Usage != "" {
+		w.writeln(currIndent, f.self.Usage)
+		w.writeln()
 	}
+	w.writeln(currIndent, "Usage: ", f.self.Names+" "+arglist)
 }
 
-func (w *writer) writeFlagValueInfo(flag *Flag) {
-	w.write(" (")
+func (w *helpWriter) writeChildInfo(currIndent string, flag *Flag, isCommand bool) {
+	w.write(currIndent)
+	info := flag.Names
+	if !isCommand {
+		if flag.Arglist != "" && flag.Arglist != "-" {
+			info += " " + flag.Arglist
+		}
+	}
+	w.write(info)
+	if flag.Usage != "" {
+		w.write("\t", flag.Usage)
+	}
+	if !isCommand {
+		w.write("\t")
+		w.writeFlagValueInfo(flag)
+	}
+	w.write("\n")
+}
+
+func (w *helpWriter) writeFlagValueInfo(flag *Flag) {
+	w.write("(")
 	w.write("type: ", typeName(flag.Ptr))
 	if flag.Env != "" || flag.Default != nil || flag.Selects != nil {
 		if flag.Env != "" {
@@ -161,85 +127,65 @@ func (w *writer) writeFlagValueInfo(flag *Flag) {
 	w.write(")")
 }
 
-func (w *writer) writeFlagSet(f *FlagSet) {
-	var (
-		currIndent       = w.inheritIndent
-		flagIndent       = w.nextIndent(currIndent)
-		outline          = !w.forceVerbose
-		flagCount        = len(f.flags)
-		subsetCount      = len(f.subsets)
-		versionLineCount = len(f.self.versionLines)
-		descLineCount    = len(f.self.descLines)
-	)
+func (w *helpWriter) verbose() bool {
+	return w.maxVerboseLevel < 0 || w.currVerboseLevel < w.maxVerboseLevel
+}
 
-	var arglist string
+func (w *helpWriter) writeCommand(f *FlagSet) {
+	var childIndent = w.nextIndent(w.indent)
 	if w.isTop {
-		arglist = w.arglist(f)
+		w.writeTopCommandInfo(w.indent, f)
+	} else {
+		w.writeChildInfo(w.indent, &f.self, true)
 	}
-	w.writeFlagInfo(currIndent, &f.self, w.isTop, arglist, w.maxInfoLen)
-	w.writeln()
-
-	if outline && !w.isTop {
+	if !w.isTop && !w.verbose() {
 		return
 	}
-	if versionLineCount > 0 {
-		if w.isTop {
+	if w.isTop {
+		if len(f.self.versionLines) > 0 {
 			w.writeln()
-			w.writeln(currIndent, "Version:")
-			w.writeLines(flagIndent, f.self.versionLines)
+			w.writeln(w.indent, "Version:")
+			w.writeLines(childIndent, f.self.versionLines)
+		}
+		if len(f.self.descLines) > 0 {
+			w.writeln()
+			w.writeln(w.indent, "Description:")
+			w.writeLines(childIndent, f.self.descLines)
 		}
 	}
-
-	if descLineCount > 0 {
+	if len(f.flags) > 0 {
 		if w.isTop {
 			w.writeln()
-			w.writeln(currIndent, "Description:")
-			w.writeLines(flagIndent, f.self.descLines)
+			w.writeln(w.indent, "Flags:")
 		}
-	}
-
-	if flagCount > 0 {
-		if versionLineCount > 0 || descLineCount > 0 || w.isTop {
-			w.writeln()
-		}
-		if w.isTop {
-			w.writeln(currIndent, "Flags:")
-		}
-		var (
-			maxFlagInfoLen = w.maxFlagInfoLen(f)
-			nextFlagIndent = w.nextIndent(flagIndent)
-		)
 		for i := range f.flags {
 			flag := &f.flags[i]
 
-			w.writeFlagInfo(flagIndent, flag, false, flag.Arglist, maxFlagInfoLen)
-			w.writeFlagValueInfo(flag)
-			w.writeln()
-			w.writeLines(nextFlagIndent, flag.descLines)
+			w.writeChildInfo(childIndent, flag, false)
+			if len(flag.descLines) > 0 {
+				w.writeLines(w.nextIndent(childIndent), flag.descLines)
+			}
 		}
 	}
 
-	if subsetCount > 0 {
-		if w.isTop || descLineCount > 0 || flagCount > 0 {
-			w.writeln()
-		}
+	if len(f.subsets) > 0 {
 		if w.isTop {
-			w.writeln(currIndent, "Commands:")
+			w.writeln()
+			w.writeln(w.indent, "Commands:")
 		}
-		var (
-			maxSubsetLen = w.maxSubsetInfoLen(f, !outline)
-			subsetIndent = flagIndent
-		)
 		for i := range f.subsets {
 			set := &f.subsets[i]
 
-			nw := writer{
-				buf:           w.buf,
-				inheritIndent: subsetIndent,
-				forceVerbose:  w.forceVerbose,
-				maxInfoLen:    maxSubsetLen,
+			nw := helpWriter{
+				buf:              w.buf,
+				indent:           childIndent,
+				currVerboseLevel: w.currVerboseLevel,
+				maxVerboseLevel:  w.maxVerboseLevel,
 			}
-			nw.writeFlagSet(set)
+			if !w.isTop {
+				nw.currVerboseLevel++
+			}
+			nw.writeCommand(set)
 		}
 	}
 }

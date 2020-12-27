@@ -7,10 +7,13 @@ const (
 	argumentFlag
 	argumentValue
 	argumentStopConsumption
-	argumentReserve
+	argumentPending
 
-	dash            = "-"
-	doubleDash      = "--"
+	dash       = "-"
+	doubleDash = "--"
+
+	nextAsValue     = "--"
+	allAsValue      = "--*"
 	stopConsumption = "-!"
 	equal           = "="
 )
@@ -151,7 +154,7 @@ func (s *scanner) append(f *FlagSet, arg argument) {
 	switch arg.Type {
 	case argumentValue, argumentStopConsumption:
 		s.appendArg(arg, false)
-	case argumentFlag, argumentReserve:
+	case argumentFlag, argumentPending:
 		s.tryAppendFlagOrSubset(f, arg, true)
 	case argumentFlagSplittable:
 		s.appendSplittable(f, arg)
@@ -163,32 +166,25 @@ func (s *scanner) canBeSplitBy(arg, sep string) bool {
 	return index > 0 && index <= len(arg)-1
 }
 
-func (s *scanner) scanArg(f *FlagSet, isFirst bool, curr, next string) (consumed int) {
-	const (
-		mustFlag    = dash
-		disableFlag = doubleDash
-	)
+func (s *scanner) scanArg(f *FlagSet, args []string, i int) (consumed int) {
 
+	curr := args[i]
 	consumed = 1
 	switch {
-	case isFirst:
+	case i == 0:
 		s.append(f, argument{Type: argumentFlag, Value: curr})
-	case curr == disableFlag:
-		if next != "" {
-			curr = next
-			consumed = 2
+	case curr == nextAsValue:
+		if i != len(args)-1 {
+			curr = args[i+1]
+			consumed++
+			s.append(f, argument{Type: argumentValue, Value: curr})
 		}
-		s.append(f, argument{Type: argumentValue, Value: curr})
-	case curr == mustFlag:
-		var typ int
-		if next != "" {
-			curr = next
-			consumed = 2
-			typ = argumentFlag
-		} else {
-			typ = argumentValue
+	case curr == allAsValue:
+		for j := i + 1; j < len(args); j++ {
+			curr = args[j]
+			s.append(f, argument{Type: argumentValue, Value: curr})
+			consumed++
 		}
-		s.append(f, argument{Type: typ, Value: curr})
 	case curr == stopConsumption:
 		s.append(f, argument{Type: argumentStopConsumption, Value: curr})
 	case strings.HasPrefix(curr, dash) && s.canBeSplitBy(curr, equal):
@@ -202,8 +198,8 @@ func (s *scanner) scanArg(f *FlagSet, isFirst bool, curr, next string) (consumed
 		}
 	case strings.HasPrefix(curr, doubleDash):
 		s.append(f, argument{Type: argumentFlag, Value: curr})
-	case s.tryAppendFlagOrSubset(f, argument{Type: argumentReserve, Value: curr}, false):
-	case strings.HasPrefix(curr, dash):
+	case s.tryAppendFlagOrSubset(f, argument{Type: argumentPending, Value: curr}, false):
+	case curr != dash && strings.HasPrefix(curr, dash):
 		s.append(f, argument{Type: argumentFlagSplittable, Value: curr})
 	default:
 		s.append(f, argument{Type: argumentValue, Value: curr})
@@ -212,19 +208,7 @@ func (s *scanner) scanArg(f *FlagSet, isFirst bool, curr, next string) (consumed
 }
 
 func (s *scanner) scan(f *FlagSet, args []string) {
-	var (
-		consumed int
-		next     string
-	)
 	for i, l := 0, len(args); i < l; {
-		arg := args[i]
-		if i < l-1 {
-			next = args[i+1]
-		} else {
-			next = ""
-		}
-
-		consumed = s.scanArg(f, i == 0, arg, next)
-		i += consumed
+		i += s.scanArg(f, args, i)
 	}
 }

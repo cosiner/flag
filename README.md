@@ -13,8 +13,8 @@ Documentation can be found at [Godoc](https://godoc.org/github.com/cosiner/flag)
 * Support types: bool, string, all number types(except complex), slice of bool, string, number.
 * Embed structure as subcommand.
 * Multiple flag names, e.g. '-z, -gz, -gzip, --gz, --gzip'
-* '-' to ensure next argument must be a flag, e.g. 
-* '--' to ensure next argument must be a value, e.g. 'rm -- -a.go' to delete file '-a.go'
+* '--' to hint that next argument must be a value, e.g. 'rm -- -a.go' to delete file '-a.go'
+* '--*' to hint that latter all arguments are values, e.g. 'rm --* -a.go -b.go -c.go' to delete files '-a.go -b.go -c.go'
 * '-!' to stop greedy-consumption for slice flags.
 * Support '=', e.g. '-a=b', '-a=true'
 * Support single bool flag, e.g. '-rm' is equal to '-rm=true'
@@ -31,8 +31,7 @@ Documentation can be found at [Godoc](https://godoc.org/github.com/cosiner/flag)
   * Names(tag: 'names'): split by ',', fully custom: short, long, with or without '-'/'--'.
   * Arglist(tag: 'arglist'): show commandline of flag or flag set, 
     E.g., `-input INPUT -output OUTPUT... -t 'tag list'`.
-  * Usage(tag: 'usage'): the short help message for this flag or flag set, 
-    E.g., `build       compile packages and dependencies`.
+  * Usage(tag: 'usage'): the short help message for this flag or flag set.
   * Desc(tag: 'desc'): long description for this flag or flag set,  it will be split to multiple lines 
     and format with same indents.
   * Ptr(field pointer for Flag, field 'Enable bool' for FlagSet): result pointer
@@ -42,15 +41,13 @@ Documentation can be found at [Godoc](https://godoc.org/github.com/cosiner/flag)
   * Selects(tag: 'selects'): selectable values, must be slice.
   * Env(tag: 'env'): environment variable, only used when flag not appeared in arguments.
   * ValSep(tag: 'valsep'): slice value separator for environment variable's value,
-  * ShowType(tag: 'showType'): show flag type in help message
   
 * FlagSet (embed structure)
-  * Expand(tag: 'expand'): always expand subset info in help message.
   * Version(tag: 'version'): app version, will be split to multiple lines and format with same indents.
   * ArgsPtr(field: 'Args'): pointer to accept all the last non-flag values, 
     nil if don't need and error will be reported automatically.
   
-* FlagMeta
+* Metadata
   Structure can implement the Metadata interface to update flag metadata instead write in structure tag, 
   it's designed for long messages.
    

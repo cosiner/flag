@@ -40,12 +40,28 @@ var tarCase = TestCases{
 				"tar -- -file --",
 			},
 			Value: &Tar{
-				SourceFiles: []string{"-file", "--"},
+				SourceFiles: []string{"-file"},
 			},
 		},
 		{
 			Cmds: []string{
-				"tar - -z",
+				"tar -- -file - -",
+			},
+			Value: &Tar{
+				SourceFiles: []string{"-file", "-", "-"},
+			},
+		},
+		{
+			Cmds: []string{
+				"tar --* -file -file2 -file3 --file4",
+			},
+			Value: &Tar{
+				SourceFiles: []string{"-file", "-file2", "-file3", "--file4"},
+			},
+		},
+		{
+			Cmds: []string{
+				"tar -z",
 			},
 			Value: &Tar{
 				GZ: true,
@@ -349,7 +365,6 @@ func TestFlags(t *testing.T) {
 					)
 				}
 
-				flags.ToString(true)
 				flags.Reset()
 			}
 		}
@@ -361,7 +376,7 @@ func TestHelp(t *testing.T) {
 
 	set := NewFlagSet(Flag{})
 	set.StructFlags(&tar)
-	set.Help(false)
+	set.Help(0)
 }
 
 func TestSubset(t *testing.T) {
@@ -369,14 +384,14 @@ func TestSubset(t *testing.T) {
 
 	set := NewFlagSet(Flag{})
 	set.StructFlags(&g)
-	set.Help(false)
+	set.Help(0)
 
 	fmt.Println()
 	fmt.Println()
 	fmt.Println()
 
 	build, _ := set.FindSubset("build")
-	build.Help(false)
+	build.Help(0)
 }
 
 func TestStopConsumption(t *testing.T) {

@@ -337,48 +337,19 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}) error 
 	}
 	return nil
 }
-
-func (r register) registerBoolFlags(parent, set *FlagSet, names []string, usage string) (bool, error) {
+func (r register) registerFlagsIfNotDuplicated(parent, set *FlagSet, names []string, ptr interface{}, usage string) (bool, error) {
 	if len(names) == 0 {
 		return false, nil
 	}
 	if duplicates := r.findDuplicates(parent, set, names); len(duplicates) > 0 {
 		return false, nil
 	}
-	var value bool
 	err := r.registerFlag(parent, set, Flag{
-		Ptr:   &value,
+		Ptr:   ptr,
 		Names: strings.Join(names, ","),
 		Usage: usage,
 	})
 	return err == nil, err
-}
-
-func (r register) registerHelpFlags(parent, set *FlagSet) error {
-	registered, err := r.registerBoolFlags(parent, set, []string{"-h", "--help"}, "show help")
-	if err == nil && registered && len(set.subsets) > 0 {
-		_, err = r.registerBoolFlags(parent, set, []string{"-v", "--verbose"}, "show verbose help")
-	}
-	return err
-}
-
-func (r register) boolFlagVal(set *FlagSet, flag string) (val, has bool) {
-	index, has := set.flagIndexes[flag]
-	if !has {
-		return false, false
-	}
-	return *set.flags[index].Ptr.(*bool), true
-}
-
-func (r register) helpFlagValues(set *FlagSet) (show, verbose bool) {
-	var has bool
-	show, has = r.boolFlagVal(set, "-h")
-	if show {
-		if has {
-			verbose, _ = r.boolFlagVal(set, "-v")
-		}
-	}
-	return
 }
 
 func (r register) prefixSpaceCount(s string) int {
@@ -392,7 +363,6 @@ func (r register) prefixSpaceCount(s string) int {
 	}
 	return c
 }
-
 func (r register) splitLines(line string) []string {
 	var (
 		lines    = strings.Split(line, "\n")

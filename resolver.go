@@ -53,7 +53,7 @@ func (r *resolver) applyVals(f *Flag, vals ...string) error {
 	return nil
 }
 
-func (r *resolver) applyEnvOrDefault(f *FlagSet, applied map[*Flag]bool) error {
+func (r *resolver) applyEnvAndDefault(f *FlagSet, applied map[*Flag]bool) error {
 	for i := range f.flags {
 		flag := &f.flags[i]
 		if applied[flag] {
@@ -162,7 +162,7 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 		return err
 	}
 
-	return r.applyEnvOrDefault(f, applied)
+	return r.applyEnvAndDefault(f, applied)
 }
 
 func (r *resolver) resolveSet(f *FlagSet, context []string, args *scanArgs) (lastSubset *FlagSet, err error) {

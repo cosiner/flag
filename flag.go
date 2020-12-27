@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"text/tabwriter"
 )
 
 // Flag represents the state of a flag
@@ -208,13 +209,27 @@ func (f *FlagSet) StructFlags(val interface{}, parent ...*FlagSet) error {
 	return f.errorHandling.handle(defaultRegister.registerStructure(p, f, val))
 }
 
+type helpFlagValues struct {
+	showHelp     bool
+	verboseLevel int
+}
+
+func registerHelpFlags(r register, parent, set *FlagSet, flags *helpFlagValues) error {
+	registered, err := r.registerFlagsIfNotDuplicated(parent, set, []string{"-h", "--help"}, &flags.showHelp, "show help")
+	if err == nil && registered && len(set.subsets) > 0 {
+		_, err = r.registerFlagsIfNotDuplicated(parent, set, []string{"-v", "--verbose"}, &flags.verboseLevel, "expand level of child command, -1 means all")
+	}
+	return err
+}
+
 // Parse parse arguments, if empty, os.Args will be used.
 func (f *FlagSet) Parse(args ...string) error {
 	if len(args) == 0 {
 		args = os.Args
 	}
+	var help helpFlagValues
 	if !f.noHelpFlag && !f.helpFlagDefined {
-		err := defaultRegister.registerHelpFlags(nil, f)
+		err := registerHelpFlags(defaultRegister, nil, f, &help)
 		if err != nil {
 			return f.errorHandling.handle(err)
 		}
@@ -229,9 +244,8 @@ func (f *FlagSet) Parse(args ...string) error {
 		return f.errorHandling.handle(err)
 	}
 
-	show, verbose := defaultRegister.helpFlagValues(f)
-	if show {
-		fmt.Print(r.LastSet.ToString(verbose))
+	if help.showHelp {
+		r.LastSet.Help(help.verboseLevel)
 		os.Exit(0)
 	}
 	return nil
@@ -247,19 +261,21 @@ func (f *FlagSet) ParseStruct(val interface{}, args ...string) error {
 }
 
 // ToString return help message, if verbose, all subset will be expand.
-func (f *FlagSet) ToString(verbose bool) string {
+func (f *FlagSet) ToString(verboseLevel int) string {
 	var buf bytes.Buffer
-	(&writer{
-		buf:          &buf,
-		isTop:        true,
-		forceVerbose: verbose,
-	}).writeFlagSet(f)
+	tw := tabwriter.NewWriter(&buf, 0, 0, 4, ' ', 0)
+	(&helpWriter{
+		buf:             tw,
+		isTop:           true,
+		maxVerboseLevel: verboseLevel,
+	}).writeCommand(f)
+	tw.Flush()
 	return buf.String()
 }
 
 // Help print help message to stdout
-func (f *FlagSet) Help(verbose bool) {
-	fmt.Print(f.ToString(verbose))
+func (f *FlagSet) Help(verboseLevel int) {
+	fmt.Print(f.ToString(verboseLevel))
 }
 
 // Reset reset values of each registered flags.
@@ -279,6 +295,6 @@ func ParseStruct(val interface{}, args ...string) error {
 }
 
 // Help is the short way of Commandline.Help
-func Help(verbose bool) {
-	Commandline.Help(verbose)
+func Help(verboseLevel int) {
+	Commandline.Help(verboseLevel)
 }
