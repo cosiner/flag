@@ -14,6 +14,12 @@ const (
 type argument struct {
 	Type  int
 	Value string
+
+	// attached value by '=', boolean flag value is optional,
+	// it can only use this approach to change it's value as `false`, otherwise
+	// it will affects later positional flag and non-flag value parsing.
+	AttachValid bool
+	Attached    string
 }
 
 type scanArgs struct {
@@ -129,12 +135,16 @@ func (s *scanner) appendSplittable(f *FlagSet, arg argument) {
 			s.SubsetStack = s.SubsetStack[:i]
 		}
 		if allFlag {
-			for _, r := range flagRunes {
-				s.appendArg(argument{Type: argumentFlag, Value: "-" + string(r)}, false)
+			for i, r := range flagRunes {
+				if i == len(flagRunes)-1 {
+					s.appendArg(argument{Type: argumentFlag, Value: "-" + string(r), Attached: arg.Attached, AttachValid: arg.AttachValid}, false)
+				} else {
+					s.appendArg(argument{Type: argumentFlag, Value: "-" + string(r)}, false)
+				}
 			}
 			return false, false
 		}
-		if firstFlag {
+		if firstFlag && !arg.AttachValid {
 			s.appendArg(argument{Type: argumentFlag, Value: "-" + string(flagRunes[0])}, false)
 			s.appendArg(argument{Type: argumentValue, Value: string(flagRunes[1:])}, false)
 			return false, false
@@ -177,20 +187,16 @@ func (s *scanner) scanArg(f *FlagSet, args []string, i int) (consumed int) {
 			s.append(f, argument{Type: argumentValue, Value: curr})
 			consumed++
 		}
-	case strings.HasPrefix(curr, "-") && s.canBeSplitBy(curr, "="):
+	case strings.HasPrefix(curr, "-") && s.canBeSplitBy(curr[1:], "="):
 		secs := strings.SplitN(curr, "=", 2)
-		for i, sec := range secs {
-			typ := argumentFlag
-			if i != 0 {
-				typ = argumentValue
-			} else if !strings.HasPrefix(sec, "--") && len(sec) >= 3 {
-				typ = argumentFlagSplittable
-			}
-			s.append(f, argument{Type: typ, Value: sec})
+		typ := argumentFlag
+		if !strings.HasPrefix(secs[0], "--") && len(secs[0]) >= 3 {
+			typ = argumentFlagSplittable
 		}
+		s.append(f, argument{Type: typ, Value: secs[0], Attached: secs[1], AttachValid: true})
 	case strings.HasPrefix(curr, "--"):
 		s.append(f, argument{Type: argumentFlag, Value: curr})
-	case s.tryAppendFlagOrSubset(f, argument{Type: argumentPending, Value: curr}, false):
+	case curr != flagNamePositional && s.tryAppendFlagOrSubset(f, argument{Type: argumentPending, Value: curr}, false):
 	case curr != "-" && strings.HasPrefix(curr, "-"):
 		s.append(f, argument{Type: argumentFlagSplittable, Value: curr})
 	default:

@@ -77,19 +77,25 @@ func (r *resolver) applyEnvAndDefault(f *FlagSet, applied map[*Flag]bool) error 
 }
 
 func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) error {
+	var positional []*Flag
+	for i := range f.flags {
+		if f.flags[i].Names == flagNamePositional {
+			positional = append(positional, &f.flags[i])
+		}
+	}
 	var (
 		applied = make(map[*Flag]bool)
 		flag    *Flag
 		err     error
 
+		positionalIndex int
+		applyValue      = func(flag *Flag, val string) error {
+			applied[flag] = true
+			return r.applyVals(flag, val)
+		}
 		applyLastFlag = func() error {
 			if flag == nil {
 				return nil
-			}
-
-			if isBoolPtr(flag.Ptr) {
-				applied[flag] = true
-				return r.applyVals(flag, "true")
 			}
 			return newErrorf(errFlagValueNotProvided, "flag value is not provided: %v.%s", context, flag.Names)
 		}
@@ -105,6 +111,15 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 			if f.self.ArgsPtr == nil || (!f.self.ArgsAnywhere && hasFlag(args[1:])) {
 				return newErrorf(errNonFlagValue, "unexpected non-flag value: %v %s", context, arg.Value)
 			}
+			if positionalIndex < len(positional) {
+				err = applyValue(positional[positionalIndex], arg.Value)
+				if err != nil {
+					return err
+				}
+				positionalIndex++
+				return nil
+			}
+
 			slice := *f.self.ArgsPtr
 			slice = append(slice, arg.Value)
 			*f.self.ArgsPtr = slice
@@ -127,6 +142,22 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 			if applied[flag] && !isSlicePtr(flag.Ptr) {
 				return newErrorf(errDuplicateFlagParsed, "duplicated flag: %v.%s", context, flag.Names)
 			}
+
+			if arg.AttachValid {
+				// directly consume flag attached value
+				err = applyValue(flag, arg.Attached)
+				if err != nil {
+					return err
+				}
+				flag = nil
+			} else if isBoolPtr(flag.Ptr) {
+				// bool flag should not consume next value to not affect positional or non flag parsing
+				err = applyValue(flag, "true")
+				if err != nil {
+					return err
+				}
+				flag = nil
+			}
 		case argumentValue:
 			if flag == nil {
 				err = appendNonFlagArg(args[i], args[i:])
@@ -134,8 +165,7 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 					return err
 				}
 			} else {
-				applied[flag] = true
-				err = r.applyVals(flag, arg.Value)
+				err = applyValue(flag, arg.Value)
 				if err != nil {
 					return err
 				}
@@ -148,6 +178,13 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 	err = applyLastFlag()
 	if err != nil {
 		return err
+	}
+	if positionalIndex < len(positional) {
+		var names []string
+		for i := positionalIndex; i < len(positional); i++ {
+			names = append(names, positional[i].Arglist)
+		}
+		return newErrorf(errPositionalFlagNotProvided, "flag not provided: %v.%v", context, names)
 	}
 
 	return r.applyEnvAndDefault(f, applied)

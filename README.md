@@ -9,48 +9,61 @@ Flag is a simple but powerful commandline flag parsing library for [Go](https://
 # Documentation
 Documentation can be found at [Godoc](https://godoc.org/github.com/cosiner/flag)
 
-# Features
-* Support types: bool, string, all number types(except complex).
-* Support slice: eg: ` -file a.go -file b.go -file c.go`.
-* Multiple flag names, e.g. '-z, -gz, -gzip, --gz, --gzip'
-* '--' to hint that next argument is a value, e.g. 'rm -- -a.go' to delete file '-a.go'
-* '--\*' to hint that latter all arguments are values, e.g. 'rm --* -a.go -b.go -c.go' to delete files '-a.go -b.go -c.go'
-* Support '=', e.g. '-a=b', '-a=true'
-* Support single bool flag, e.g. '-rm' is equal to '-rm=true'
-* Support multiple single flags: e.g. '-zcf a.tgz' and '-zcf=a.tgz' is equal to '-z -c -f a.tgz'
-* Support '-I/usr/include' like format, the character next to '-' must be a alphabet, and the next next must not be.
-* Support catch non-flag values, e.g. 'tar -zcf a.tgz a.go b.go' will catch the values ['a.go', 'b.go']
-* Default value
-* Select values
-* Environment variable
-* Duplicate flag names detect
-* Embed structure as subcommand.
+# Supported features
+* bool
+  * `-f`, `-f=false`, `-f=true`, there is no `-f true` and `-f false` to avoid conflicting 
+    with positional flag and non-flag values
+* string,number
+  * `-f a.go -n 100`
+* slice:
+  * `-f a.go -f b.go -f c.go`
+* hint flag as value
+  * `--` to hint next argument is value: `rm -- -a.go`, 
+    `rm -- -a.go -b.go` will throws error for `-b.go` is invalid flag
+  * `--*` to hint latter all arguments are value: `rm -- -a.go -b.go -c.go`
+* useful tricks:
+  * `-f a.go`, `-f=a.go`, `--file=a.go`
+  * `-zcf=a.go`, `-zcf a.go`
+  * `-I/usr/include`: only works for `-[a-zA-Z][^a-zA-Z].+`
+* catch non-flag arguments:
+  * `rm -rf a.go b.go c.go`, catchs `[a.go, b.go, c.go]` 
+* positional flag:
+  * `cp -f src.go dst.go`, catchs `SOURCE=a.go DESTINATION=dst.go`
+  * This is implemented as a special case of non-flag arguments, positional flags will be applied first, and remain values
+* value apply/checking
+  * default value
+  * environment value
+  * value list for user selecting
+* multiple flag names for one flag
+* subcommand.
 
-# Parsing
-* Flag/FlagSet
-  * Names(tag: 'names'): split by ',', fully custom: short, long, with or without '-'/'--'.
-  * Arglist(tag: 'arglist'): show commandline of flag or flag set, 
-    E.g., `-input INPUT -output OUTPUT... -t 'tag list'`.
-  * Usage(tag: 'usage'): the short help message for this flag or flag set.
-  * Desc(tag: 'desc'): long description for this flag or flag set,  it will be split to multiple lines 
-    and format with same indents.
-  * Ptr(field pointer for Flag, field 'Enable bool' for FlagSet): result pointer
-  
-* Flag (structure field)
-  * Default(tag: 'default'): default value
-  * Selects(tag: 'selects'): selectable values, must be slice.
-  * Env(tag: 'env'): environment variable, only used when flag not appeared in arguments.
-  * ValSep(tag: 'valsep'): slice value separator for environment variable's value,
-  
-* FlagSet (embed structure)
-  * Version(tag: 'version'): app version, will be split to multiple lines and format with same indents.
-  * ArgsPtr(field: 'Args'): pointer to accept all the last non-flag values, 
-    nil if don't need and error will be reported automatically.
-  
-* Metadata
-  Structure can implement the Metadata interface to update flag metadata instead write in structure tag, 
-  it's designed for long messages.
-   
+# Definition via structure field tag
+* `names`: flag/command names, comma-speparated, default uses camelCase of field name(with a `-` prefix for flag)
+  * `-` to skip this field
+  * `@` to indicate that this is a positional flag
+  * support multiple name and formats: eg: `-f, --file, -file'
+* `arglist`: argument list for command or argument name for flag
+  * for positional flag, this will also be used as it's display name if defined, otherwise field name is used.
+  * command example: eg: `[OPTION]... SOURCE DESTINATION`, or `[FLAG]... FILE [ARG}...` 
+  * flag example: eg: 'FILE', 'DESTINATION'
+* `version`: version message for command
+* `usage`: short description
+* `desc`: long description
+* `env`: environment name for flag, if user doesn't passed this flag, environment value will be used
+* `default`: default value for flag, if user doesn't passed this flag and environment value not defined, it will be used 
+* `args`: used to catching non-flag arguments, it's type must be `[]string`
+
+* special cases
+  * `Enable`, there must be a `Enable` field inside command to indicate whether user are using this command.
+  * `Args`: this field will be used to store non-flag arguments if `args` tag is not defined
+  * `Metadata`: structure could implement this interface to override settings defined by tags
+  ```Go
+    type Metadata interface {
+	    // the key is comma-separated flag name to find command/flag,
+        // each component represents a level, "" represents root command
+        Metadata() map[string]Flag
+    }
+  ```
   
 # Example
 ## Flags

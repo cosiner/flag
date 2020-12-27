@@ -7,6 +7,10 @@ import (
 	"unicode"
 )
 
+const (
+	flagNamePositional = "@"
+)
+
 type register struct {
 }
 
@@ -21,6 +25,9 @@ func (r register) addIndexes(indexes map[string]int, keys []string, index int) {
 func (r register) findDuplicates(parent, set *FlagSet, names []string) []string {
 	var duplicates []string
 	for _, name := range names {
+		if name == flagNamePositional {
+			continue
+		}
 		if set.isFlagOrSubset(name) || (parent != nil && parent.isFlagOrSubset(name)) {
 			duplicates = append(duplicates, name)
 			continue
@@ -101,6 +108,15 @@ func (r register) registerFlag(parent, set *FlagSet, flag Flag) error {
 	if refval.Kind() != reflect.Ptr {
 		return newErrorf(errNonPointer, "illegal flag pointer: %s", flag.Names)
 	}
+	if flag.Names == flagNamePositional {
+		if flag.Arglist == "" {
+			return newErrorf(errInvalidNames, "positional flag must provide `arglist` field")
+		}
+		if refval.Elem().Kind() == reflect.Slice {
+			return newErrorf(errInvalidType, "optional flag should not be slice: %s", flag.Arglist)
+		}
+	}
+
 	if typeName(flag.Ptr) == "" {
 		return newErrorf(errInvalidType, "unsupported flag type: %s", flag.Names)
 	}
@@ -118,6 +134,13 @@ func (r register) registerFlag(parent, set *FlagSet, flag Flag) error {
 	}
 
 	ns, names := r.cleanFlagNames(flag.Names)
+	if names != flagNamePositional {
+		for _, s := range ns {
+			if s == flagNamePositional {
+				return newErrorf(errInvalidNames, "invalid flag names: %s", flag.Names)
+			}
+		}
+	}
 	if duplicates := r.findDuplicates(parent, set, ns); len(duplicates) > 0 {
 		if parent != nil {
 			return newErrorf(errDuplicateFlagRegister, "duplicate flags with parent/self/children: %s->%s, %v", parent.self.Names, set.self.Names, duplicates)
@@ -141,6 +164,9 @@ func (r register) checkSubsetValid(flag *Flag) error {
 }
 
 func (r register) registerSet(parent, set *FlagSet, flag Flag) (*FlagSet, error) {
+	if flag.Names == flagNamePositional {
+		return nil, newErrorf(errInvalidNames, "positional name '@' can only be used for flag")
+	}
 	var ns []string
 
 	ns, flag.Names = r.cleanFlagNames(flag.Names)
@@ -203,23 +229,23 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}) error 
 		reftyp := refval.Type()
 		numfield := refval.NumField()
 		for i := 0; i < numfield; i++ {
-			fieldType := reftyp.Field(i)
-			if !ast.IsExported(fieldType.Name) {
+			field := reftyp.Field(i)
+			if !ast.IsExported(field.Name) {
 				continue
 			}
 
 			fieldVal := refval.Field(i)
 
-			args := fieldType.Tag.Get(tagArgs)
+			args := field.Tag.Get(tagArgs)
 			isArgs, err := parseBool(args, "false")
 			if err != nil {
-				return newErrorf(errInvalidValue, "non-bool tag args value: %s.%s %s", set.self.Names, fieldType.Name, args)
+				return newErrorf(errInvalidValue, "non-bool tag args value: %s.%s %s", set.self.Names, field.Name, args)
 			}
-			if fieldType.Name == fieldArgs || isArgs {
-				argsAnywhere := fieldType.Tag.Get(tagArgsAnywhere)
+			if field.Name == fieldArgs || isArgs {
+				argsAnywhere := field.Tag.Get(tagArgsAnywhere)
 				anywhere, err := parseBool(argsAnywhere, "false")
 				if err != nil {
-					return newErrorf(errInvalidValue, "non-bool tag anywhere value: %s.%s %s", set.self.Names, fieldType.Name, argsAnywhere)
+					return newErrorf(errInvalidValue, "non-bool tag anywhere value: %s.%s %s", set.self.Names, field.Name, argsAnywhere)
 				}
 				if set.self.ArgsPtr != nil {
 					return newErrorf(errDuplicateFlagRegister, "duplicate args field: %s", set.self.Names)
@@ -233,8 +259,8 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}) error 
 			}
 
 			ptr := fieldVal.Addr().Interface()
-			if fieldType.Name == fieldSubsetEnable {
-				if fieldType.Type.Kind() != reflect.Bool {
+			if field.Name == fieldSubsetEnable {
+				if field.Type.Kind() != reflect.Bool {
 					return newErrorf(errInvalidType, "illegal type of field '%s', expect bool", fieldSubsetEnable)
 				}
 				if set.self.Ptr == nil {
@@ -244,11 +270,11 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}) error 
 			}
 
 			var (
-				names   = fieldType.Tag.Get(tagNames)
-				usage   = fieldType.Tag.Get(tagUsage)
-				desc    = fieldType.Tag.Get(tagDesc)
-				version = fieldType.Tag.Get(tagVersion)
-				arglist = fieldType.Tag.Get(tagArglist)
+				names   = field.Tag.Get(tagNames)
+				usage   = field.Tag.Get(tagUsage)
+				desc    = field.Tag.Get(tagDesc)
+				version = field.Tag.Get(tagVersion)
+				arglist = field.Tag.Get(tagArglist)
 			)
 			if names == "-" {
 				continue
@@ -260,13 +286,17 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}) error 
 
 			if fieldVal.Kind() != reflect.Struct {
 				var (
-					env     = fieldType.Tag.Get(tagEnv)
-					def     = fieldType.Tag.Get(tagDefault)
-					valsep  = fieldType.Tag.Get(tagValsep)
-					selects = fieldType.Tag.Get(tagSelects)
+					env     = field.Tag.Get(tagEnv)
+					def     = field.Tag.Get(tagDefault)
+					valsep  = field.Tag.Get(tagValsep)
+					selects = field.Tag.Get(tagSelects)
 				)
 				if names == "" {
-					names = "-" + unexportedName(fieldType.Name)
+					names = "-" + unexportedName(field.Name)
+				} else if names == flagNamePositional {
+					if arglist == "" {
+						arglist = field.Name
+					}
 				}
 				if valsep == "" {
 					valsep = ","
@@ -298,11 +328,11 @@ func (r register) registerStructure(parent, set *FlagSet, st interface{}) error 
 				if err != nil {
 					return err
 				}
-			} else if fieldType.Anonymous {
+			} else if field.Anonymous {
 				parseQueue = append(parseQueue, fieldVal)
 			} else {
 				if names == "" {
-					names = unexportedName(fieldType.Name)
+					names = unexportedName(field.Name)
 				}
 				child, err := r.registerSet(parent, set, Flag{
 					Names:   names,

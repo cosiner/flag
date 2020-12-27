@@ -23,6 +23,7 @@ const (
 	errInvalidSelects
 	errInvalidDefault
 	errInvalidStructure
+	errPositionalFlagNotProvided
 )
 
 func (t errorType) String() string {
@@ -51,6 +52,8 @@ func (t errorType) String() string {
 		return "InvalidSelects"
 	case errInvalidStructure:
 		return "InvalidStructure"
+	case errPositionalFlagNotProvided:
+		return "PositionalFlagNotProvided"
 	default:
 		return "UnknownError"
 	}

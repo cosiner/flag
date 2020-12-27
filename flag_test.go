@@ -86,9 +86,9 @@ var tarCase = TestCases{
 				"tar -A",
 				"tar --A",
 				"tar -f",
-				"tar -z aaa",
-				"tar -z true bbb -f a.tgz",
-				"tar -z true -z true",
+				"tar -z=aaa aaa",
+				"tar -z=true bbb -f a.tgz",
+				"tar -z=true -z=true",
 			},
 			Errors: []errorType{
 				errFlagNotFound,
@@ -349,7 +349,8 @@ func TestFlags(t *testing.T) {
 				err = flags.Parse(argv[0]...)
 				gotErr, expectErr := gotErrorType(err), expectErrorType(c.Errors, j)
 				if gotErr.String() != expectErr.String() {
-					t.Errorf("%s: parse failed: Case:%d Cmd:%d, expect error: %s, got error %s",
+					t.Errorf("%s: parse failed: Cmdline: %s, Case:%d Cmd:%d, expect error: %s, got error %s",
+						cmd,
 						typ.Category,
 						i+1,
 						j+1,
@@ -377,7 +378,7 @@ func TestHelp(t *testing.T) {
 
 	set := NewFlagSet(Flag{})
 	set.StructFlags(&tar)
-	set.Help(0)
+	set.Help()
 }
 
 func TestSubset(t *testing.T) {
@@ -385,14 +386,14 @@ func TestSubset(t *testing.T) {
 
 	set := NewFlagSet(Flag{})
 	set.StructFlags(&g)
-	set.Help(0)
+	set.Help()
 
 	fmt.Println()
 	fmt.Println()
 	fmt.Println()
 
 	build, _ := set.FindSubset("build")
-	build.Help(0)
+	build.Help()
 }
 
 func TestSlice(t *testing.T) {
@@ -409,4 +410,25 @@ func TestSlice(t *testing.T) {
 	if !reflect.DeepEqual(flags.Rest, []string{"d"}) {
 		t.Fatal("slice test failed", flags.Rest)
 	}
+}
+
+func TestPositional(t *testing.T) {
+	type Copy struct {
+		Force       bool     `names:"-f" usage:"force override"`
+		Source      string   `names:"@" arglist:"SRC" usage:"source file"`
+		Destination string   `names:"@" arglist:"DST" usage:"destination file"`
+		Rest        []string `args:"true"`
+	}
+
+	fs := NewFlagSet(Flag{})
+
+	var flags Copy
+	fs.ParseStruct(&flags, "cp", "-f", "a.go", "b.go", "--", "-c", "d")
+	if !flags.Force || flags.Source != "a.go" || flags.Destination != "b.go" {
+		t.Fatal("positional test failed")
+	}
+	if !reflect.DeepEqual(flags.Rest, []string{"-c", "d"}) {
+		t.Fatal("positional test failed", flags.Rest)
+	}
+	fs.Help()
 }
