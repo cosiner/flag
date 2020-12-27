@@ -108,7 +108,8 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 			return false
 		}
 		appendNonFlagArg = func(arg argument, args []argument) error {
-			if f.self.ArgsPtr == nil || (!f.self.ArgsAnywhere && hasFlag(args[1:])) {
+			if (positionalIndex >= len(positional) && f.self.ArgsPtr == nil) ||
+				(!f.self.ArgsAnywhere && hasFlag(args[1:])) {
 				return newErrorf(errNonFlagValue, "unexpected non-flag value: %v %s", context, arg.Value)
 			}
 			if positionalIndex < len(positional) {
