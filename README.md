@@ -1,8 +1,5 @@
 # Flag
 [![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/cosiner/flag) 
-[![Build Status](https://travis-ci.org/cosiner/flag.svg?branch=master&style=flat)](https://travis-ci.org/cosiner/flag)
-[![Coverage Status](https://coveralls.io/repos/github/cosiner/flag/badge.svg?style=flat)](https://coveralls.io/github/cosiner/flag)
-[![Go Report Card](https://goreportcard.com/badge/github.com/cosiner/flag?style=flat)](https://goreportcard.com/report/github.com/cosiner/flag)
 
 Flag is a simple but powerful commandline flag parsing library for [Go](https://golang.org).
 
