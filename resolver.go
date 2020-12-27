@@ -179,13 +179,13 @@ func (r *resolver) resolveFlags(f *FlagSet, context []string, args []argument) e
 	if err != nil {
 		return err
 	}
-	if positionalIndex < len(positional) {
-		var names []string
-		for i := positionalIndex; i < len(positional); i++ {
-			names = append(names, positional[i].Arglist)
-		}
-		return newErrorf(errPositionalFlagNotProvided, "flag not provided: %v.%v", context, names)
-	}
+	//if positionalIndex < len(positional) {
+	//	var names []string
+	//	for i := positionalIndex; i < len(positional); i++ {
+	//		names = append(names, positional[i].Arglist)
+	//	}
+	//	return newErrorf(errPositionalFlagNotProvided, "flag not provided: %v.%v", context, names)
+	//}
 
 	return r.applyEnvAndDefault(f, applied)
 }
